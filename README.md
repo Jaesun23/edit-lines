@@ -1,4 +1,4 @@
-# edit-local-file MCP Server
+# edit-file-lines MCP Server
 
 A TypeScript-based MCP server that provides tools for making precise line-based edits to text files within allowed directories.
 
@@ -21,7 +21,7 @@ Example usage:
 }
 ```
 
-#### `get_line_info`
+#### `get_file_lines`
 Get information about specific line numbers in a file, including their content and optional context lines.
 
 Example usage:
@@ -83,10 +83,10 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 ```json
 {
   "mcpServers": {
-    "edit-local-file": {
+    "edit-file-lines": {
       "command": "node",
       "args": [
-        "/path/to/edit-local-file/build/index.js",
+        "/path/to/edit-file-lines/build/index.js",
         "<allowed-directory>"
       ]
     }
@@ -112,59 +112,3 @@ npm run inspector
 ```
 
 The Inspector will provide a URL to access debugging tools in your browser.
-
-## Editing Tools Comparison
-
-Choose the right tool for your editing needs:
-
-- `replace_in_file`: Best for finding and replacing specific text patterns, handles multi-line content while preserving indentation
-- `edit_lines`: Best for replacing entire lines when you know the exact line numbers
-- `edit_chars`: Best for precise character-level edits within specific lines
-- `get_line_info`: Useful for inspecting line content before making edits
-
-### Example Use Cases
-
-1. Replace function names throughout a file:
-```json
-{
-  "path": "script.js",
-  "replacements": [
-    {
-      "oldText": "oldFunction",
-      "newText": "newFunction"
-    }
-  ]
-}
-```
-
-2. Update specific lines in a configuration file:
-```json
-{
-  "path": "config.ini",
-  "edits": [
-    {
-      "range": {
-        "start": 5
-      },
-      "newContent": "port=8080"
-    }
-  ]
-}
-```
-
-3. Fix a typo in a specific location:
-```json
-{
-  "path": "document.txt",
-  "edits": [
-    {
-      "range": {
-        "line": 3,
-        "start": 10,
-        "end": 18
-      },
-      "newContent": "corrected"
-    }
-  ]
-}
-```
