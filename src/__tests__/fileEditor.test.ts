@@ -18,27 +18,27 @@ describe("fileEditor", () => {
     return path;
   }
 
-   // Helper to clean up all temp files
-   async function cleanupTempFiles() {
+  // Helper to clean up all temp files
+  async function cleanupTempFiles() {
     try {
       const files = await fs.readdir(FIXTURES_DIR);
       await Promise.all(
         files
-          .filter(file => file.startsWith('temp-'))
-          .map(file => fs.unlink(join(FIXTURES_DIR, file))
-            .catch(error => {
+          .filter((file) => file.startsWith("temp-"))
+          .map((file) =>
+            fs.unlink(join(FIXTURES_DIR, file)).catch((error) => {
               console.error(`Failed to delete ${file}:`, error);
             })
           )
       );
     } catch (error) {
-      console.error('Error during cleanup:', error);
+      console.error("Error during cleanup:", error);
     }
   }
 
   beforeEach(async () => {
     // Create a new temp file before each test
-    content = "line 1\nline 2\nline 3\n";
+    content = "line 1\nline 2\nline 3\nline 4\nline 5\n";
     tempFilePath = await createTempFile(content);
   });
 
@@ -48,58 +48,46 @@ describe("fileEditor", () => {
   });
 
   it("should handle single line replacements", async () => {
-    const content = "line 1\nline 2\nline 3\n";
-    const tempPath = await createTempFile(content);
-
     const result = await editFile({
-      p: tempPath,
+      p: tempFilePath,
       e: [[2, 2, "replaced line"]]
     });
 
-    const newContent = await fs.readFile(tempPath, "utf-8");
-    expect(newContent).toBe("line 1\nreplaced line\nline 3\n");
+    const newContent = await fs.readFile(tempFilePath, "utf-8");
+    expect(newContent).toBe("line 1\nreplaced line\nline 3\nline 4\nline 5\n");
     expect(result).toContain("-line 2");
     expect(result).toContain("+replaced line");
   });
 
   it("should handle multiple line replacements", async () => {
-    const content = "line 1\nline 2\nline 3\nline 4\nline 5\n";
-    const tempPath = await createTempFile(content);
-
     const result = await editFile({
-      p: tempPath,
+      p: tempFilePath,
       e: [[2, 4, "new line 1\nnew line 2"]]
     });
 
-    const newContent = await fs.readFile(tempPath, "utf-8");
+    const newContent = await fs.readFile(tempFilePath, "utf-8");
     expect(newContent).toBe("line 1\nnew line 1\nnew line 2\nline 5\n");
   });
 
   it("should process edits in reverse line order", async () => {
-    const content = "line 1\nline 2\nline 3\nline 4\nline 5\n";
-    const tempPath = await createTempFile(content);
-
     const result = await editFile({
-      p: tempPath,
+      p: tempFilePath,
       e: [
         [1, 1, "first line"],
         [4, 4, "fourth line"]
       ]
     });
 
-    const newContent = await fs.readFile(tempPath, "utf-8");
+    const newContent = await fs.readFile(tempFilePath, "utf-8");
     expect(newContent).toBe(
       "first line\nline 2\nline 3\nfourth line\nline 5\n"
     );
   });
 
   it("should throw error for overlapping ranges", async () => {
-    const content = "line 1\nline 2\nline 3\nline 4\n";
-    const tempPath = await createTempFile(content);
-
     await expect(
       editFile({
-        p: tempPath,
+        p: tempFilePath,
         e: [
           [1, 2, "overlap 1"],
           [2, 3, "overlap 2"]
@@ -109,27 +97,20 @@ describe("fileEditor", () => {
   });
 
   describe("line range validation", () => {
-    let tempPath: string;
-
-    beforeEach(async () => {
-      const content = "line 1\nline 2\nline 3\n";
-      tempPath = await createTempFile(content);
-    });
-
     it("should allow equal start and end line numbers", async () => {
       const result = await editFile({
-        p: tempPath,
+        p: tempFilePath,
         e: [[2, 2, "same line"]]
       });
 
-      const newContent = await fs.readFile(tempPath, "utf-8");
-      expect(newContent).toBe("line 1\nsame line\nline 3\n");
+      const newContent = await fs.readFile(tempFilePath, "utf-8");
+      expect(newContent).toBe("line 1\nsame line\nline 3\nline 4\nline 5\n");
     });
 
     it("should throw error when start line is greater than end line", async () => {
       await expect(
         editFile({
-          p: tempPath,
+          p: tempFilePath,
           e: [[3, 2, "invalid range"]]
         })
       ).rejects.toThrow(
@@ -140,14 +121,14 @@ describe("fileEditor", () => {
     it("should throw error for zero line numbers", async () => {
       await expect(
         editFile({
-          p: tempPath,
+          p: tempFilePath,
           e: [[0, 1, "invalid"]]
         })
       ).rejects.toThrow("Line numbers must be positive integers");
 
       await expect(
         editFile({
-          p: tempPath,
+          p: tempFilePath,
           e: [[1, 0, "invalid"]]
         })
       ).rejects.toThrow("Line numbers must be positive integers");
@@ -156,14 +137,14 @@ describe("fileEditor", () => {
     it("should throw error for negative line numbers", async () => {
       await expect(
         editFile({
-          p: tempPath,
+          p: tempFilePath,
           e: [[-1, 1, "invalid"]]
         })
       ).rejects.toThrow("Line numbers must be positive integers");
 
       await expect(
         editFile({
-          p: tempPath,
+          p: tempFilePath,
           e: [[1, -1, "invalid"]]
         })
       ).rejects.toThrow("Line numbers must be positive integers");

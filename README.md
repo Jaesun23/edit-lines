@@ -152,7 +152,7 @@ All editing tools:
 - Support `dryRun` mode to preview changes without applying them
 - Handle line endings consistently across platforms
 - Validate inputs and provide clear error messages
-- State management for edit approvals with 60-second TTL
+- State management for edit approvals with configurable TTL (default: 60 seconds)
 
 ## Development
 
@@ -218,6 +218,10 @@ node build/index.js <allowed-directory> [additional-directories...]
 
 All file operations will be restricted to these directories for security.
 
+### Environment Variables
+
+- `MCP_EDIT_STATE_TTL`: Time-to-live in milliseconds for edit states (default: 60000). Edit states will expire after this duration and must be recreated.
+
 ## Installation
 
 To use with Claude Desktop, add the server config:
@@ -233,7 +237,10 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
       "args": [
         "/path/to/edit-file-lines/build/index.js",
         "<allowed-directory>"
-      ]
+      ],
+      "env": {
+        "MCP_EDIT_STATE_TTL": "300000"  // Optional: Set custom TTL (in milliseconds)
+      }
     }
   }
 }

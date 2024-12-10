@@ -26,22 +26,22 @@ describe("approveEdit", () => {
       const files = await fs.readdir(FIXTURES_DIR);
       await Promise.all(
         files
-          .filter(file => file.startsWith('temp-'))
-          .map(file => fs.unlink(join(FIXTURES_DIR, file))
-            .catch(error => {
+          .filter((file) => file.startsWith("temp-"))
+          .map((file) =>
+            fs.unlink(join(FIXTURES_DIR, file)).catch((error) => {
               console.error(`Failed to delete ${file}:`, error);
             })
           )
       );
     } catch (error) {
-      console.error('Error during cleanup:', error);
+      console.error("Error during cleanup:", error);
     }
   }
 
   beforeEach(async () => {
     // Clean up any leftover temp files before each test
     await cleanupTempFiles();
-    
+
     stateManager = new StateManager();
     content = "line 1\nline 2\nline 3\n";
     tempFilePath = await createTempFile(content);
