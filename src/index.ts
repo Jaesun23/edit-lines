@@ -11,6 +11,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { approveEdit } from "./utils/approveEdit.js";
 import { editFile } from "./utils/fileEditor.js";
 import { getLineInfo } from "./utils/lineInfo.js";
 import { StateManager } from "./utils/stateManager.js";
@@ -197,25 +198,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         throw new Error(`Invalid arguments: ${parsed.error}`);
       }
 
-      const validPath = await validatePath(parsed.data.p);
-      const result = await editFile(
-        { ...parsed.data, p: validPath },
-        parsed.data.dryRun
-      );
+      try {
+        const validPath = await validatePath(parsed.data.p);
+        const result = await editFile(
+          { ...parsed.data, p: validPath },
+          parsed.data.dryRun
+        );
 
-      if (parsed.data.dryRun) {
-        const stateId = stateManager.saveState(validPath, parsed.data.e);
+        if (parsed.data.dryRun) {
+          const stateId = stateManager.saveState(validPath, parsed.data.e);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `${result}\nState ID: ${stateId}\nUse this ID with approve_edit to apply the changes.`
+              }
+            ]
+          };
+        }
+
+        return { content: [{ type: "text", text: result }] };
+      } catch (error) {
         return {
           content: [
             {
               type: "text",
-              text: `${result}\nState ID: ${stateId}\nUse this ID with approve_edit to apply the changes.`
+              text: `Error: ${error instanceof Error ? error.message : String(error)}`
             }
-          ]
+          ],
+          isError: true
         };
       }
-
-      return { content: [{ type: "text", text: result }] };
     }
 
     if (name === "approve_edit") {
@@ -224,22 +237,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         throw new Error(`Invalid arguments: ${parsed.error}`);
       }
 
-      const state = stateManager.getState(parsed.data.stateId);
-      if (!state) {
-        throw new Error(
-          "State not found or expired. Please perform the edit_file_lines operation again."
-        );
+      try {
+        const result = await approveEdit(parsed.data.stateId, stateManager);
+        return { content: [{ type: "text", text: result }] };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error: ${error instanceof Error ? error.message : String(error)}`
+            }
+          ],
+          isError: true
+        };
       }
-
-      const result = await editFile(
-        { p: state.path, e: state.edits },
-        false // Apply the changes
-      );
-
-      // Delete the state after applying the changes
-      stateManager.deleteState(parsed.data.stateId);
-
-      return { content: [{ type: "text", text: result }] };
     }
 
     if (name === "get_file_lines") {
@@ -247,13 +258,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (!parsed.success) {
         throw new Error(`Invalid arguments for get_line_info: ${parsed.error}`);
       }
-      const validPath = await validatePath(parsed.data.path);
-      const result = await getLineInfo(
-        validPath,
-        parsed.data.lineNumbers,
-        parsed.data.context
-      );
-      return { content: [{ type: "text", text: result }] };
+
+      try {
+        const validPath = await validatePath(parsed.data.path);
+        const result = await getLineInfo(
+          validPath,
+          parsed.data.lineNumbers,
+          parsed.data.context
+        );
+        return { content: [{ type: "text", text: result }] };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error: ${error instanceof Error ? error.message : String(error)}`
+            }
+          ],
+          isError: true
+        };
+      }
     }
 
     throw new Error(`Unknown tool: ${name}`);
