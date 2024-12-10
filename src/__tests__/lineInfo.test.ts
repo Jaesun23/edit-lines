@@ -1,6 +1,6 @@
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { getLineInfo } from "../lineInfo.js";
+import { getLineInfo } from "../utils/lineInfo.js";
 
 // Get current directory
 const __filename = fileURLToPath(import.meta.url);

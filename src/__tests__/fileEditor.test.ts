@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { editFile } from "../fileEditor.js";
+import { editFile } from "../utils/fileEditor.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

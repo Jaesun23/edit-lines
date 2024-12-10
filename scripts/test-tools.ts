@@ -4,7 +4,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { z } from "zod";
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { resetFixtures } from './reset-fixtures';
+import { resetFixtures } from './reset-fixtures.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,8 +48,7 @@ async function main() {
     // Connect to server
     await client.connect(transport);
 
-    // Test get_file_lines
-    console.log("\nTesting get_file_lines:");
+    console.log("\n=== Testing basic file info ===");
     const getFileResult = await client.request(
       {
         method: "tools/call",
@@ -66,41 +65,100 @@ async function main() {
     );
     console.log(getFileResult.content[0].text);
 
-    // Test edit_file_lines with dry run
-    console.log("\nTesting edit_file_lines (dry run):");
-    const editFileResult = await client.request(
+    console.log("\n=== Testing dry run edit ===");
+    const dryRunResult = await client.request(
       {
         method: "tools/call",
         params: {
           name: "edit_file_lines",
           arguments: {
             p: path.join(fixturesDir, "example.txt"),
-            e: [[2, 2, '  console.log("Hello World!");']],
+            e: [[2, 2, '  console.log("Hello from dry run!");']],
             dryRun: true
           }
         }
       },
       ToolResultSchema
     );
-    console.log(editFileResult.content[0].text);
+    console.log(dryRunResult.content[0].text);
+    
+    // Extract state ID from the dry run result
+    const stateIdMatch = dryRunResult.content[0].text.match(/State ID: ([a-f0-9]+)/);
+    const stateId = stateIdMatch ? stateIdMatch[1] : null;
+    
+    if (stateId) {
+      console.log("\n=== Testing approve_edit with valid state ID ===");
+      const approveResult = await client.request(
+        {
+          method: "tools/call",
+          params: {
+            name: "approve_edit",
+            arguments: {
+              stateId
+            }
+          }
+        },
+        ToolResultSchema
+      );
+      console.log(approveResult.content[0].text);
 
-    // Test edit_file_lines with actual change
-    console.log("\nTesting edit_file_lines (actual change):");
-    const realEditResult = await client.request(
+      // Verify the changes were applied
+      console.log("\n=== Verifying changes ===");
+      const verifyResult = await client.request(
+        {
+          method: "tools/call",
+          params: {
+            name: "get_file_lines",
+            arguments: {
+              path: path.join(fixturesDir, "example.txt"),
+              lineNumbers: [2],
+              context: 1
+            }
+          }
+        },
+        ToolResultSchema
+      );
+      console.log(verifyResult.content[0].text);
+    }
+
+    console.log("\n=== Testing approve_edit with invalid state ID ===");
+    const invalidStateResult = await client.request(
       {
         method: "tools/call",
         params: {
-          name: "edit_file_lines",
+          name: "approve_edit",
           arguments: {
-            p: path.join(fixturesDir, "example.txt"),
-            e: [[2, 2, '  console.log("Hello World!");']],
-            dryRun: false
+            stateId: "invalid123"
           }
         }
       },
       ToolResultSchema
     );
-    console.log(realEditResult.content[0].text);
+    console.log(invalidStateResult.content[0].text);
+
+    console.log("\n=== Testing approve_edit with previosly used state ID ===");
+    // Wait for state to expire (if TTL is short for testing)
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    if (stateId) {
+      const expiredStateResult = await client.request(
+        {
+          method: "tools/call",
+          params: {
+            name: "approve_edit",
+            arguments: {
+              stateId
+            }
+          }
+        },
+        ToolResultSchema
+      );
+      console.log(expiredStateResult.content[0].text);
+    }
+
+    // Reset fixtures again to clean up
+    await resetFixtures();
+    console.log("\n=== Test fixtures reset to original state ===");
 
   } catch (error) {
     console.error("Error:", error);

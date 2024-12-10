@@ -11,14 +11,15 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { editFile } from "./fileEditor.js";
-import { getLineInfo } from "./lineInfo.js";
+import { editFile } from "./utils/fileEditor.js";
+import { getLineInfo } from "./utils/lineInfo.js";
+import { StateManager } from "./utils/stateManager.js";
 
 // Command line argument parsing
 const args = process.argv.slice(2);
 if (args.length === 0) {
   console.error(
-    "Usage: edit-file-lines <allowed-directory> [additional-directories...]"
+    "Usage: ./build/index.js <allowed-directory> [additional-directories...]"
   );
   process.exit(1);
 }
@@ -134,6 +135,9 @@ const GetLineInfoArgsSchema = z.object({
 const ToolInputSchema = ToolSchema.shape.inputSchema;
 type ToolInput = z.infer<typeof ToolInputSchema>;
 
+// Add to server setup section
+const stateManager = new StateManager();
+
 // Server setup
 const server = new Server(
   {
@@ -155,10 +159,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "edit_file_lines",
         description:
           "Make line-based edits to a file. Each edit is a tuple of [startLine, endLine, newContent] " +
-          "specifying a line range to replace with new content. Edits are applied from bottom to top " +
-          "to maintain line numbers. Overlapping edits are not allowed. Returns a git-style diff " +
-          "showing the changes. Only works within allowed directories.",
+          "specifying a line range to replace with new content. When dryRun is true, returns a diff " +
+          "and a stateId that can be used with approve_edit tool to apply the edit. The stateId is only valid for 1 minute. Only works within allowed directories.",
         inputSchema: zodToJsonSchema(EditFileArgsSchema) as ToolInput
+      },
+      {
+        name: "approve_edit",
+        description:
+          "Approve and apply a previously validated edit from a dry run with edit_file_lines call using its stateId.",
+        inputSchema: zodToJsonSchema(
+          z.object({
+            stateId: z
+              .string()
+              .describe("State ID returned from a dry run edit_file_lines call")
+          })
+        ) as ToolInput
       },
       {
         name: "get_file_lines",
@@ -187,6 +202,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         { ...parsed.data, p: validPath },
         parsed.data.dryRun
       );
+
+      if (parsed.data.dryRun) {
+        const stateId = stateManager.saveState(validPath, parsed.data.e);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `${result}\nState ID: ${stateId}\nUse this ID with approve_edit to apply the changes.`
+            }
+          ]
+        };
+      }
+
+      return { content: [{ type: "text", text: result }] };
+    }
+
+    if (name === "approve_edit") {
+      const parsed = z.object({ stateId: z.string() }).safeParse(args);
+      if (!parsed.success) {
+        throw new Error(`Invalid arguments: ${parsed.error}`);
+      }
+
+      const state = stateManager.getState(parsed.data.stateId);
+      if (!state) {
+        throw new Error(
+          "State not found or expired. Please perform the edit_file_lines operation again."
+        );
+      }
+
+      const result = await editFile(
+        { p: state.path, e: state.edits },
+        false // Apply the changes
+      );
+
+      // Delete the state after applying the changes
+      stateManager.deleteState(parsed.data.stateId);
 
       return { content: [{ type: "text", text: result }] };
     }
