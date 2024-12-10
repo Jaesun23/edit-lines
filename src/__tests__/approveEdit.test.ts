@@ -15,7 +15,10 @@ describe("approveEdit", () => {
 
   // Helper to create a temporary file for testing
   async function createTempFile(fileContent: string): Promise<string> {
-    const path = join(FIXTURES_DIR, `temp-${Date.now()}.txt`);
+    const path = join(
+      FIXTURES_DIR,
+      `temp-${Date.now()}-${Math.round(1000000 * Math.random())}.txt`
+    );
     await fs.writeFile(path, fileContent);
     return path;
   }
@@ -33,17 +36,16 @@ describe("approveEdit", () => {
             })
           )
       );
+      // to ensure the file is created after the cleanup
+      await new Promise((resolve) => setTimeout(resolve, 100));
     } catch (error) {
       console.error("Error during cleanup:", error);
     }
   }
 
   beforeEach(async () => {
-    // Clean up any leftover temp files before each test
-    await cleanupTempFiles();
-
     stateManager = new StateManager();
-    content = "line 1\nline 2\nline 3\n";
+    content = "line 1\nline 2\nline 3\nline 4\nline 5\n";
     tempFilePath = await createTempFile(content);
   });
 
@@ -62,7 +64,7 @@ describe("approveEdit", () => {
 
     // Verify the file was modified
     const newContent = await fs.readFile(tempFilePath, "utf-8");
-    expect(newContent).toBe("line 1\nmodified line\nline 3\n");
+    expect(newContent).toBe("line 1\nmodified line\nline 3\nline 4\nline 5\n");
     expect(result).toContain("-line 2");
     expect(result).toContain("+modified line");
 
@@ -109,14 +111,14 @@ describe("approveEdit", () => {
 
     // Verify first edit
     let newContent = await fs.readFile(tempFilePath, "utf-8");
-    expect(newContent).toBe("first edit\nline 2\nline 3\n");
+    expect(newContent).toBe("first edit\nline 2\nline 3\nline 4\nline 5\n");
 
     // Approve second edit
     await approveEdit(stateId2, stateManager);
 
     // Verify both edits
     newContent = await fs.readFile(tempFilePath, "utf-8");
-    expect(newContent).toBe("first edit\nline 2\nsecond edit\n");
+    expect(newContent).toBe("first edit\nline 2\nsecond edit\nline 4\nline 5\n");
 
     // Verify both states were consumed
     expect(stateManager.getState(stateId1)).toBeUndefined();
