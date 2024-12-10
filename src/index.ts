@@ -110,8 +110,9 @@ async function validatePath(requestedPath: string): Promise<string> {
 
 // Schema for edit_file
 const EditSchema = z.tuple([
-  z.number().int().positive(),
-  z.number().int().positive(),
+  z.number().int().positive(), // start line
+  z.number().int().positive(), // end line
+  z.string(), // content
   z.string()
 ]);
 
@@ -159,9 +160,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "edit_file_lines",
         description:
-          "Make line-based edits to a file. Each edit is a tuple of [startLine, endLine, newContent] " +
-          "specifying a line range to replace with new content. When dryRun is true, returns a diff " +
-          "and a stateId that can be used with approve_edit tool to apply the edit. The stateId is only valid for 1 minute. Only works within allowed directories.",
+          "Make line-based edits to a file. Each edit is a tuple of [startLine, endLine, newContent, searchText] " +
+          "where searchText is a string match and replaced by newContent, including preserving indentations. " +
+          "If searchText is empty string or there are no matches, the entire line is replaced by newContent. " +
+          "When dryRun is true, returns a diff and a stateId that can be used with approve_edit tool to apply the edit. " +
+          "The stateId is only valid for 1 minute. Only works within allowed directories.",
         inputSchema: zodToJsonSchema(EditFileArgsSchema) as ToolInput
       },
       {

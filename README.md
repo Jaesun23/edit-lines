@@ -6,15 +6,28 @@ A TypeScript-based MCP server that provides tools for making precise line-based 
 
 ### Tools
 #### `edit_file_lines`
-Make line-based edits to a file. Replace one or more entire lines with new content. Returns a state ID for approval when using dry run mode.
+Make line-based edits to a file. Each edit can either replace entire lines or replace specific text within lines while preserving indentation. Returns a state ID for approval when using dry run mode.
 
-Example usage:
+Example usage to replace specific text (preserving indentation):
 ```json
 {
   "p": "file.txt",
   "e": [
     [
-      5, 7, "new line 1\nnew line 2"
+      5, 7, "new button", "old button"
+    ]
+  ],
+  "dryRun": true
+}
+```
+
+Example usage to replace entire lines:
+```json
+{
+  "p": "file.txt",
+  "e": [
+    [
+      5, 7, "new line 1\nnew line 2", ""
     ]
   ],
   "dryRun": true
@@ -38,83 +51,35 @@ Multiple edits example:
 {
   "p": "src/components/Button.tsx",
   "e": [
-    [10, 12, "  background-color: blue;\n  color: white;\n  padding: 8px 16px;"],
-    [15, 15, "  border-radius: 4px;"]
+    [10, 12, "blue", "red"],  // Replace "red" with "blue" while preserving indentation
+    [15, 15, "  border-radius: 4px;", ""]  // Replace entire line
   ],
   "dryRun": true
 }
 ```
 
-#### `approve_edit`
-Approve and apply a previously previewed edit using its state ID. The state ID is obtained from a dry run of `edit_file_lines`.
+Edit format:
+- `startLine`: First line to consider for editing (integer)
+- `endLine`: Last line to consider for editing (integer)
+- `newContent`: The new text to insert
+- `searchText`: The text to search for and replace. If empty string or no matches found, replaces entire line(s)
 
-Example usage:
+Common scenarios:
+1. Replace text while preserving indentation:
 ```json
-{
-  "stateId": "a1b2c3d4"
-}
+[5, 5, "new value", "old value"]  // Only replaces "old value" with "new value"
 ```
 
-Response (on success):
+2. Replace entire lines:
 ```json
-{
-  "content": [
-    {
-      "type": "text",
-      "text": "```diff\n--- file.txt\n+++ file.txt\n@@ -5,7 +5,8 @@\n-old line 1\n-old line 2\n-old line 3\n+new line 1\n+new line 2\n \n Changes applied successfully\n```"
-    }
-  ]
-}
+[5, 7, "new content", ""]  // Replaces entire lines 5-7
 ```
 
-Common error responses:
+3. Replace specific alignment/spacing:
 ```json
-{
-  "content": [
-    {
-      "type": "text",
-      "text": "Error: Invalid or expired state ID"
-    }
-  ],
-  "isError": true
-}
+[10, 12, "    ", "  "]  // Changes 2-space indentation to 4-space
 ```
 
-```json
-{
-  "content": [
-    {
-      "type": "text",
-      "text": "Error: State has expired (TTL: 60 seconds)"
-    }
-  ],
-  "isError": true
-}
-```
-
-#### `get_file_lines`
-Get information about specific line numbers in a file, including their content and optional context lines.
-
-Example usage:
-```json
-{
-  "path": "src/components/Button.tsx",
-  "lineNumbers": [10, 11, 12],
-  "context": 2
-}
-```
-
-Response:
-```json
-{
-  "content": [
-    {
-      "type": "text",
-      "text": "Line 10:\n  8: const Button = styled.button`\n  9:   /* Base styles */\n> 10:   background-color: ${props => props.variant === 'primary' ? 'blue' : 'gray'};\n> 11:   color: white;\n> 12:   padding: ${props => props.size === 'large' ? '12px 24px' : '8px 16px'};\n  13: \n  14:   &:hover {\n"
-    }
-  ]
-}
-```
 
 ### Typical Workflow
 

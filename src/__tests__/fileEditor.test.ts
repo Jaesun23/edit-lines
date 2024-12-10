@@ -43,7 +43,7 @@ describe("fileEditor", () => {
 
   beforeEach(async () => {
     // Create a new temp file before each test
-    content = "line 1\nline 2\nline 3\nline 4\nline 5\n";
+    content = "line 1\nline 2\nline 3\n    line 4\n    line 5\n";
     tempFilePath = await createTempFile(content);
   });
 
@@ -59,7 +59,9 @@ describe("fileEditor", () => {
     });
 
     const newContent = await fs.readFile(tempFilePath, "utf-8");
-    expect(newContent).toBe("line 1\nreplaced line\nline 3\nline 4\nline 5\n");
+    expect(newContent).toBe(
+      "line 1\nreplaced line\nline 3\n    line 4\n    line 5\n"
+    );
     expect(result).toContain("-line 2");
     expect(result).toContain("+replaced line");
   });
@@ -71,7 +73,7 @@ describe("fileEditor", () => {
     });
 
     const newContent = await fs.readFile(tempFilePath, "utf-8");
-    expect(newContent).toBe("line 1\nnew line 1\nnew line 2\nline 5\n");
+    expect(newContent).toBe("line 1\nnew line 1\nnew line 2\n    line 5\n");
   });
 
   it("should process edits in reverse line order", async () => {
@@ -85,7 +87,7 @@ describe("fileEditor", () => {
 
     const newContent = await fs.readFile(tempFilePath, "utf-8");
     expect(newContent).toBe(
-      "first line\nline 2\nline 3\nfourth line\nline 5\n"
+      "first line\nline 2\nline 3\nfourth line\n    line 5\n"
     );
   });
 
@@ -109,7 +111,9 @@ describe("fileEditor", () => {
       });
 
       const newContent = await fs.readFile(tempFilePath, "utf-8");
-      expect(newContent).toBe("line 1\nsame line\nline 3\nline 4\nline 5\n");
+      expect(newContent).toBe(
+        "line 1\nsame line\nline 3\n    line 4\n    line 5\n"
+      );
     });
 
     it("should throw error when start line is greater than end line", async () => {
@@ -153,6 +157,66 @@ describe("fileEditor", () => {
           e: [[1, -1, "invalid"]]
         })
       ).rejects.toThrow("Line numbers must be positive integers");
+    });
+  });
+
+  describe("search parameter functionality", () => {
+    it("should preserve indentation when using search parameter", async () => {
+      const result = await editFile({
+        p: tempFilePath,
+        e: [[5, 5, "new content", "line 5"]]
+      });
+
+      const newContent = await fs.readFile(tempFilePath, "utf-8");
+      expect(newContent).toBe(
+        "line 1\nline 2\nline 3\n    line 4\n    new content\n"
+      );
+      expect(result).toContain("-    line 5");
+      expect(result).toContain("+    new content");
+    });
+
+    it("should replace line when search parameter is not found", async () => {
+      const result = await editFile({
+        p: tempFilePath,
+        e: [[5, 5, "new content", "line 6"]]
+      });
+
+      const newContent = await fs.readFile(tempFilePath, "utf-8");
+      expect(newContent).toBe(
+        "line 1\nline 2\nline 3\n    line 4\nnew content\n"
+      );
+      expect(result).toContain("-    line 5");
+      expect(result).toContain("+new content");
+    });
+
+    it("should handle multiple line edits with search parameter", async () => {
+      const result = await editFile({
+        p: tempFilePath,
+        e: [
+          [2, 2, "new line 2", "line 2"],
+          [4, 4, "new line 4", "line 4"]
+        ]
+      });
+
+      const newContent = await fs.readFile(tempFilePath, "utf-8");
+      expect(newContent).toBe(
+        "line 1\nnew line 2\nline 3\n    new line 4\n    line 5\n"
+      );
+    });
+
+    it("should work with dry run mode", async () => {
+      const result = await editFile(
+        {
+          p: tempFilePath,
+          e: [[5, 5, "new content", "line 5"]]
+        },
+        true
+      );
+
+      const newContent = await fs.readFile(tempFilePath, "utf-8");
+      expect(newContent).not.toContain("new content"); // File should be unchanged
+      expect(result).toContain("-    line 5");
+      expect(result).toContain("+    new content");
     });
   });
 

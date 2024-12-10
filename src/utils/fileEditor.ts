@@ -1,3 +1,4 @@
+// fileEditor.ts
 import fs from "fs/promises";
 import { createTwoFilesPatch } from "diff";
 import { normalizeLineEndings } from "./utils.js";
@@ -7,6 +8,7 @@ interface LineRange {
   start: number;
   end: number;
   content: string;
+  search: string;
 }
 
 interface FileSnapshot {
@@ -84,7 +86,18 @@ class FileEditor {
     for (const edit of this.edits) {
       const startIndex = edit.start - 1;
       const endIndex = edit.end - 1;
-      const newLines = normalizeLineEndings(edit.content).split("\n");
+      let newLines = normalizeLineEndings(edit.content).split("\n");
+
+      // If search string is provided, attempt to replace it in each line
+      if (edit.search) {
+        for (let i = startIndex; i <= endIndex; i++) {
+          const currentLine = modifiedLines[i];
+          if (currentLine.includes(edit.search)) {
+            newLines = [currentLine.replace(edit.search, edit.content)];
+            break;
+          }
+        }
+      }
 
       // Replace the lines
       modifiedLines.splice(startIndex, endIndex - startIndex + 1, ...newLines);
@@ -106,7 +119,7 @@ class FileEditor {
 }
 
 export async function editFile(
-  options: { p: string; e: [number, number, string][] },
+  options: { p: string; e: [number, number, string, string?][] },
   dryRun = false
 ): Promise<string> {
   // Read file content
@@ -116,8 +129,8 @@ export async function editFile(
   const editor = new FileEditor(content);
 
   // Add all edits
-  for (const [start, end, newContent] of options.e) {
-    editor.addEdit({ start, end, content: newContent });
+  for (const [start, end, newContent, search] of options.e) {
+    editor.addEdit({ start, end, content: newContent, search: search ?? "" });
   }
 
   // Apply edits and get modified content

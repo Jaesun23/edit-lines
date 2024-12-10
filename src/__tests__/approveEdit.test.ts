@@ -56,7 +56,9 @@ describe("approveEdit", () => {
 
   it("should successfully apply valid edit", async () => {
     // Save a state for a simple edit
-    const edits: [number, number, string][] = [[2, 2, "modified line"]];
+    const edits: [number, number, string, string][] = [
+      [2, 2, "modified line", ""]
+    ];
     const stateId = stateManager.saveState(tempFilePath, edits);
 
     // Approve the edit
@@ -84,7 +86,9 @@ describe("approveEdit", () => {
 
   it("should preserve state if edit fails", async () => {
     // Save a state with invalid line numbers
-    const edits: [number, number, string][] = [[999, 999, "invalid line"]];
+    const edits: [number, number, string, string][] = [
+      [999, 999, "invalid line", ""]
+    ];
     const stateId = stateManager.saveState(tempFilePath, edits);
 
     // Try to approve edit that will fail
@@ -100,8 +104,12 @@ describe("approveEdit", () => {
 
   it("should handle multiple approvals in sequence", async () => {
     // Save multiple states
-    const edits1: [number, number, string][] = [[1, 1, "first edit"]];
-    const edits2: [number, number, string][] = [[3, 3, "second edit"]];
+    const edits1: [number, number, string, string][] = [
+      [1, 1, "first edit", ""]
+    ];
+    const edits2: [number, number, string, string][] = [
+      [3, 3, "second edit", ""]
+    ];
 
     const stateId1 = stateManager.saveState(tempFilePath, edits1);
     const stateId2 = stateManager.saveState(tempFilePath, edits2);
@@ -118,7 +126,9 @@ describe("approveEdit", () => {
 
     // Verify both edits
     newContent = await fs.readFile(tempFilePath, "utf-8");
-    expect(newContent).toBe("first edit\nline 2\nsecond edit\nline 4\nline 5\n");
+    expect(newContent).toBe(
+      "first edit\nline 2\nsecond edit\nline 4\nline 5\n"
+    );
 
     // Verify both states were consumed
     expect(stateManager.getState(stateId1)).toBeUndefined();
@@ -127,7 +137,7 @@ describe("approveEdit", () => {
 
   it("should clean up state even if file is unchanged", async () => {
     // Save a state that makes no changes
-    const edits: [number, number, string][] = [[2, 2, "line 2"]];
+    const edits: [number, number, string, string][] = [[2, 2, "line 2", ""]];
     const stateId = stateManager.saveState(tempFilePath, edits);
 
     // Approve the edit

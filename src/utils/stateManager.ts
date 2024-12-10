@@ -1,9 +1,8 @@
-// stateManager.ts
 import { createHash } from "crypto";
 
 interface EditState {
   path: string;
-  edits: [number, number, string][];
+  edits: [number, number, string, string][];
   timestamp: number;
 }
 
@@ -35,13 +34,13 @@ export class StateManager {
 
   private generateStateId(
     path: string,
-    edits: [number, number, string][]
+    edits: [number, number, string, string][]
   ): string {
     const content = JSON.stringify({ path, edits });
     return createHash("sha256").update(content).digest("hex").slice(0, 8);
   }
 
-  saveState(path: string, edits: [number, number, string][]): string {
+  saveState(path: string, edits: [number, number, string, string][]): string {
     this.cleanup();
     const stateId = this.generateStateId(path, edits);
     this.states.set(stateId, {

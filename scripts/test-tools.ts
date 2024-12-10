@@ -73,7 +73,7 @@ async function main() {
           name: "edit_file_lines",
           arguments: {
             p: path.join(fixturesDir, "example.txt"),
-            e: [[2, 2, '  console.log("Hello from dry run!");']],
+            e: [[2, 2, '  console.log("Hello from dry run!");', ""]],
             dryRun: true
           }
         }
