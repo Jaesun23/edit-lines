@@ -1,0 +1,12 @@
+line 1: function hello() {
+line 2:   console.log("Hello");
+line 3: }
+line 4: 
+line 5: function world() {
+line 6:   return "World";
+line 7: }
+line 8:
+line 9: module.exports = {
+line 10:   hello,
+line 11:   world
+line 12: };
