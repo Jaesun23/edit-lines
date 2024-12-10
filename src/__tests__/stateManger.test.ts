@@ -1,10 +1,18 @@
 import { StateManager } from "../utils/stateManager.js";
 
 describe("StateManager", () => {
+  const originalEnv = process.env;
   let stateManager: StateManager;
 
   beforeEach(() => {
     stateManager = new StateManager();
+    process.env = { ...originalEnv };
+    delete process.env.MCP_EDIT_STATE_TTL;
+  });
+
+  afterEach(() => {
+    // Restore original environment
+    process.env = originalEnv;
   });
 
   describe("saveState", () => {
@@ -135,6 +143,73 @@ describe("StateManager", () => {
       // Getting state2 should trigger cleanup of state1
       expect(stateManager.getState(stateId2)).toBeDefined();
       expect(stateManager.getState(stateId1)).toBeUndefined();
+    });
+  });
+
+  describe("TTL Configuration", () => {
+    it("should use default TTL (60000ms) when no environment variable is set", () => {
+      const manager = new StateManager();
+      expect(manager.getTTL()).toBe(60000);
+    });
+
+    it("should use custom TTL when MCP_EDIT_STATE_TTL is set", () => {
+      process.env.MCP_EDIT_STATE_TTL = "30000";
+      const manager = new StateManager();
+      expect(manager.getTTL()).toBe(30000);
+    });
+
+    it("should throw error for invalid TTL value", () => {
+      process.env.MCP_EDIT_STATE_TTL = "invalid";
+      expect(() => new StateManager()).toThrow(
+        "MCP_EDIT_STATE_TTL must be a positive number when set"
+      );
+    });
+
+    it("should throw error for negative TTL value", () => {
+      process.env.MCP_EDIT_STATE_TTL = "-1000";
+      expect(() => new StateManager()).toThrow(
+        "MCP_EDIT_STATE_TTL must be a positive number when set"
+      );
+    });
+
+    it("should throw error for zero TTL value", () => {
+      process.env.MCP_EDIT_STATE_TTL = "0";
+      expect(() => new StateManager()).toThrow(
+        "MCP_EDIT_STATE_TTL must be a positive number when set"
+      );
+    });
+
+    it("should respect custom TTL for state expiration", async () => {
+      // Set a very short TTL (100ms)
+      process.env.MCP_EDIT_STATE_TTL = "100";
+      const manager = new StateManager();
+
+      // Save a state
+      const stateId = manager.saveState("/test/path", [[1, 1, "test"]]);
+
+      // Verify state exists initially
+      expect(manager.getState(stateId)).toBeDefined();
+
+      // Wait for TTL to expire
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      // Verify state is expired
+      expect(manager.getState(stateId)).toBeUndefined();
+    });
+
+    it("should keep state when within TTL period", async () => {
+      // Set TTL to 200ms
+      process.env.MCP_EDIT_STATE_TTL = "200";
+      const manager = new StateManager();
+
+      // Save a state
+      const stateId = manager.saveState("/test/path", [[1, 1, "test"]]);
+
+      // Wait for half the TTL
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Verify state still exists
+      expect(manager.getState(stateId)).toBeDefined();
     });
   });
 });

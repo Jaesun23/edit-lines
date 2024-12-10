@@ -5,23 +5,46 @@ import { editFile } from "../utils/fileEditor.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const FIXTURES_DIR = join(__dirname, "fixtures");
 
 describe("fileEditor", () => {
+  let tempFilePath: string;
+  let content: string;
+
   // Helper to create a temporary file for testing
-  async function createTempFile(content: string): Promise<string> {
-    const tempPath = join(__dirname, "fixtures", `temp-${Date.now()}.txt`);
-    await fs.writeFile(tempPath, content);
-    return tempPath;
+  async function createTempFile(fileContent: string): Promise<string> {
+    const path = join(FIXTURES_DIR, `temp-${Date.now()}.txt`);
+    await fs.writeFile(path, fileContent);
+    return path;
   }
 
-  // Clean up temp files after each test
-  afterEach(async () => {
-    const files = await fs.readdir(join(__dirname, "fixtures"));
-    for (const file of files) {
-      if (file.startsWith("temp-")) {
-        await fs.unlink(join(__dirname, "fixtures", file));
-      }
+   // Helper to clean up all temp files
+   async function cleanupTempFiles() {
+    try {
+      const files = await fs.readdir(FIXTURES_DIR);
+      await Promise.all(
+        files
+          .filter(file => file.startsWith('temp-'))
+          .map(file => fs.unlink(join(FIXTURES_DIR, file))
+            .catch(error => {
+              console.error(`Failed to delete ${file}:`, error);
+            })
+          )
+      );
+    } catch (error) {
+      console.error('Error during cleanup:', error);
     }
+  }
+
+  beforeEach(async () => {
+    // Create a new temp file before each test
+    content = "line 1\nline 2\nline 3\n";
+    tempFilePath = await createTempFile(content);
+  });
+
+  afterEach(async () => {
+    // Clean up after each test
+    await cleanupTempFiles();
   });
 
   it("should handle single line replacements", async () => {
@@ -148,18 +171,15 @@ describe("fileEditor", () => {
   });
 
   it("should handle dry run without modifying file", async () => {
-    const content = "line 1\nline 2\nline 3\n";
-    const tempPath = await createTempFile(content);
-
     const result = await editFile(
       {
-        p: tempPath,
+        p: tempFilePath,
         e: [[2, 2, "replaced line"]]
       },
       true
     );
 
-    const newContent = await fs.readFile(tempPath, "utf-8");
+    const newContent = await fs.readFile(tempFilePath, "utf-8");
     expect(newContent).toBe(content); // File should be unchanged
     expect(result).toContain("diff"); // But diff should be generated
   });

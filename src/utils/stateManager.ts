@@ -9,10 +9,19 @@ interface EditState {
 
 export class StateManager {
   private states: Map<string, EditState>;
-  private readonly TTL = 60 * 1000; // 1 minute TTL
+  private readonly TTL: number;
 
   constructor() {
     this.states = new Map();
+
+    // Read TTL from environment variable or use default (1 minute)
+    const envTTL = process.env.MCP_EDIT_STATE_TTL;
+    this.TTL = envTTL ? parseInt(envTTL, 10) : 60 * 1000;
+
+    // Validate TTL is a positive number
+    if (isNaN(this.TTL) || this.TTL <= 0) {
+      throw new Error("MCP_EDIT_STATE_TTL must be a positive number when set");
+    }
   }
 
   private cleanup(): void {
@@ -56,5 +65,10 @@ export class StateManager {
     }
     this.states.delete(stateId);
     return undefined;
+  }
+
+  // Added for testing purposes
+  getTTL(): number {
+    return this.TTL;
   }
 }
