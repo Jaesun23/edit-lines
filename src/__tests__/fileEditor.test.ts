@@ -57,6 +57,36 @@ describe("FileEditor", () => {
       expect(diff).toContain('+  baseUrl: "https://api.newexample.com",');
       expect(diff).toContain("+  timeout: 10000");
     });
+
+    it("should handle leading whitespace in string matches", async () => {
+      const edit: EditOperation = {
+        startLine: 16,
+        endLine: 16,
+        content: "    <div myclass={cardClass}>",
+        strMatch: "    <div className={cardClass}>"
+      };
+    
+      const { diff, results } = await editFile(testMatchesPath, [edit], true);
+      
+      expect(diff).toContain('-    <div className={cardClass}>');
+      expect(diff).toContain('+    <div myclass={cardClass}>');
+      expect(results.get(16)?.applied).toBe(true);
+    });
+    
+    it("should handle string matches with mixed indentation", async () => {
+      const edit: EditOperation = {
+        startLine: 17,
+        endLine: 17,
+        content: "        <h2>{title}</h2>",
+        strMatch: "      <h2>{title}</h2>"
+      };
+    
+      const { diff, results } = await editFile(testMatchesPath, [edit], true);
+      
+      expect(diff).toContain('-      <h2>{title}</h2>');
+      expect(diff).toContain('+        <h2>{title}</h2>');
+      expect(results.get(17)?.applied).toBe(true);
+    });
   });
 
   // String matching operations
