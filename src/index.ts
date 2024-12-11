@@ -11,10 +11,14 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { EditFileArgsSchema, EditOperation } from "./types/editTypes.js";
 import { approveEdit } from "./utils/approveEdit.js";
 import { editFile } from "./utils/fileEditor.js";
 import { getLineInfo } from "./utils/lineInfo.js";
 import { StateManager } from "./utils/stateManager.js";
+
+const ToolInputSchema = ToolSchema.shape.inputSchema;
+type ToolInput = z.infer<typeof ToolInputSchema>;
 
 // Command line argument parsing
 const args = process.argv.slice(2);
@@ -108,20 +112,6 @@ async function validatePath(requestedPath: string): Promise<string> {
   }
 }
 
-// Schema for edit_file
-const EditSchema = z.tuple([
-  z.number().int().positive(), // start line
-  z.number().int().positive(), // end line
-  z.string(), // content
-  z.string()
-]);
-
-const EditFileArgsSchema = z.object({
-  p: z.string(),
-  e: z.array(EditSchema),
-  dryRun: z.boolean().default(false)
-});
-
 // Schema for get_line_info
 const GetLineInfoArgsSchema = z.object({
   path: z.string(),
@@ -133,9 +123,6 @@ const GetLineInfoArgsSchema = z.object({
     .default(0)
     .describe("Number of context lines before and after")
 });
-
-const ToolInputSchema = ToolSchema.shape.inputSchema;
-type ToolInput = z.infer<typeof ToolInputSchema>;
 
 // Add to server setup section
 const stateManager = new StateManager();
@@ -159,12 +146,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "edit_file_lines",
-        description:
-          "Make line-based edits to a file. Each edit is a tuple of [startLine, endLine, newContent, searchText] " +
-          "where searchText is a string match and replaced by newContent, including preserving indentations. " +
-          "If searchText is empty string or there are no matches, the entire line is replaced by newContent. " +
-          "When dryRun is true, returns a diff and a stateId that can be used with approve_edit tool to apply the edit. " +
-          "The stateId is only valid for 1 minute. Only works within allowed directories.",
+        description: `Make line-based edits to a file. Each edit operation can:
+- Replace entire lines when no match criteria is specified
+- Replace specific text matches while preserving line formatting (using strMatch)
+- Replace regex matches while preserving line formatting (using regexMatch)
+- Handle multiple lines with full content replacement
+When dryRun is true, returns a diff and a stateId that can be used with approve_edit tool to apply the edit.
+The stateId is only valid for 1 minute.`,
         inputSchema: zodToJsonSchema(EditFileArgsSchema) as ToolInput
       },
       {
@@ -198,29 +186,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (name === "edit_file_lines") {
       const parsed = EditFileArgsSchema.safeParse(args);
       if (!parsed.success) {
-        throw new Error(`Invalid arguments: ${parsed.error}`);
+        throw new Error(
+          `Invalid arguments: ${JSON.stringify(parsed.error.errors, null, 2)}`
+        );
       }
 
       try {
         const validPath = await validatePath(parsed.data.p);
-        const result = await editFile(
-          { ...parsed.data, p: validPath },
+
+        // Convert array-style edits to object style
+        const edits: EditOperation[] = parsed.data.e;
+
+        const { diff, results } = await editFile(
+          validPath,
+          edits,
           parsed.data.dryRun
         );
 
+        // For dry run, save state and return stateId
         if (parsed.data.dryRun) {
           const stateId = stateManager.saveState(validPath, parsed.data.e);
           return {
             content: [
               {
                 type: "text",
-                text: `${result}\nState ID: ${stateId}\nUse this ID with approve_edit to apply the changes.`
+                text: `${diff}\nState ID: ${stateId}\nUse this ID with approve_edit to apply the changes.`
               }
             ]
           };
         }
 
-        return { content: [{ type: "text", text: result }] };
+        return {
+          content: [
+            {
+              type: "text",
+              text: diff
+            }
+          ]
+        };
       } catch (error) {
         return {
           content: [
@@ -259,7 +262,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (name === "get_file_lines") {
       const parsed = GetLineInfoArgsSchema.safeParse(args);
       if (!parsed.success) {
-        throw new Error(`Invalid arguments for get_line_info: ${parsed.error}`);
+        throw new Error(
+          `Invalid arguments for get_file_lines: ${parsed.error}`
+        );
       }
 
       try {

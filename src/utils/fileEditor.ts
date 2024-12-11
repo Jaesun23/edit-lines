@@ -1,106 +1,161 @@
-// fileEditor.ts
+// utils/fileEditor.ts
 import fs from "fs/promises";
 import { createTwoFilesPatch } from "diff";
+import {
+  EditOperation,
+  EditOperationResult,
+  MatchNotFoundError
+} from "../types/editTypes.js";
 import { normalizeLineEndings } from "./utils.js";
 
-// Types
-interface LineRange {
-  start: number;
-  end: number;
-  content: string;
-  search: string;
-}
-
-interface FileSnapshot {
-  lines: string[];
-  originalContent: string;
-}
-
 class FileEditor {
-  private snapshot: FileSnapshot;
-  private edits: LineRange[];
+  private lines: string[];
+  private originalContent: string;
+  private edits: EditOperation[];
+  private results: Map<number, EditOperationResult>;
 
   constructor(content: string) {
-    const normalized = normalizeLineEndings(content);
-    this.snapshot = {
-      lines: normalized.split("\n"),
-      originalContent: normalized
-    };
+    this.originalContent = normalizeLineEndings(content);
+    this.lines = this.originalContent.split("\n");
     this.edits = [];
+    this.results = new Map();
   }
 
-  private validateRange(range: LineRange): void {
-    const totalLines = this.snapshot.lines.length;
+  addEdit(edit: EditOperation): void {
+    this.validateRange(edit);
+    this.edits.push(edit);
+  }
 
-    if (range.start < 1 || range.end < 1) {
-      throw new Error("Line numbers must be positive integers");
-    }
-
-    if (range.start > range.end) {
+  private validateRange(edit: EditOperation): void {
+    if (edit.startLine > edit.endLine) {
       throw new Error(
-        `Invalid range: start line ${range.start} is greater than end line ${range.end}`
+        `Invalid range: start line ${edit.startLine} is greater than end line ${edit.endLine}`
       );
     }
 
-    if (range.start > totalLines || range.end > totalLines) {
+    const totalLines = this.lines.length;
+    if (edit.startLine < 1 || edit.endLine > totalLines) {
       throw new Error(
-        `Invalid line range: file has ${totalLines} lines but range is ${range.start}-${range.end}`
+        `Invalid line range: file has ${totalLines} lines but range is ${edit.startLine}-${edit.endLine}`
       );
     }
   }
 
   private validateEdits(): void {
-    // First validate each individual edit
-    this.edits.forEach((edit) => this.validateRange(edit));
-
-    // Then check for overlaps using a line occupation map
-    const lineOccupation = new Array(this.snapshot.lines.length + 1).fill(
-      false
-    );
+    // Create a map to track line usage
+    const lineUsage = new Map<number, EditOperation>();
 
     for (const edit of this.edits) {
-      for (let line = edit.start; line <= edit.end; line++) {
-        if (lineOccupation[line]) {
-          throw new Error(`Line ${line} is affected by multiple edits`);
+      for (let line = edit.startLine; line <= edit.endLine; line++) {
+        const existingEdit = lineUsage.get(line);
+        if (existingEdit) {
+          throw new Error(
+            `Line ${line} is affected by multiple edits (${JSON.stringify(existingEdit)} and ${JSON.stringify(edit)})`
+          );
         }
-        lineOccupation[line] = true;
+        lineUsage.set(line, edit);
       }
     }
   }
 
-  addEdit(range: LineRange): void {
-    this.edits.push(range);
+  private applyMatchReplace(
+    lineContent: string,
+    edit: EditOperation,
+    lineNumber: number
+  ): string {
+    // If no matching criteria specified, replace the entire line
+    if (!edit.strMatch && !edit.regexMatch) {
+      return edit.content;
+    }
+
+    if (edit.strMatch) {
+      if (!lineContent.includes(edit.strMatch)) {
+        throw new MatchNotFoundError(lineNumber, edit.strMatch, false);
+      }
+      return lineContent.replaceAll(edit.strMatch, edit.content);
+    }
+
+    if (edit.regexMatch) {
+      try {
+        const regex = new RegExp(edit.regexMatch, "g");
+        if (!regex.test(lineContent)) {
+          throw new MatchNotFoundError(lineNumber, edit.regexMatch, true);
+        }
+        // Reset lastIndex after test
+        regex.lastIndex = 0;
+        return lineContent.replace(regex, edit.content);
+      } catch (error) {
+        if (error instanceof MatchNotFoundError) {
+          throw error;
+        }
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        throw new Error(
+          `Invalid regex pattern "${edit.regexMatch}": ${errorMessage}`
+        );
+      }
+    }
+
+    return lineContent; // Fallback, should never reach here
   }
 
   applyEdits(): string {
-    // Validate all edits before applying any changes
     this.validateEdits();
 
-    // Sort edits by start line in descending order
-    this.edits.sort((a, b) => b.start - a.start);
+    // Sort edits in reverse order to handle line numbers correctly
+    const sortedEdits = [...this.edits].sort(
+      (a, b) => b.startLine - a.startLine
+    );
 
-    // Create a new array of lines for the modified content
-    let modifiedLines = [...this.snapshot.lines];
+    // Create a new array for modified lines
+    const modifiedLines = [...this.lines];
 
-    // Apply each edit
-    for (const edit of this.edits) {
-      const startIndex = edit.start - 1;
-      const endIndex = edit.end - 1;
-      let newLines = normalizeLineEndings(edit.content).split("\n");
+    for (const edit of sortedEdits) {
+      const startIdx = edit.startLine - 1;
+      const endIdx = edit.endLine - 1;
 
-      // If search string is provided, attempt to replace it in each line
-      if (edit.search) {
-        for (let i = startIndex; i <= endIndex; i++) {
-          const currentLine = modifiedLines[i];
-          if (currentLine.includes(edit.search)) {
-            newLines = [currentLine.replace(edit.search, edit.content)];
-            break;
+      try {
+        // For single-line edits with matching
+        if (
+          edit.startLine === edit.endLine &&
+          (edit.strMatch || edit.regexMatch)
+        ) {
+          const lineContent = modifiedLines[startIdx];
+          const newContent = this.applyMatchReplace(
+            lineContent,
+            edit,
+            edit.startLine
+          );
+          modifiedLines[startIdx] = newContent;
+
+          this.results.set(edit.startLine, {
+            applied: true,
+            lineContent: newContent
+          });
+        } else {
+          // For multi-line edits or full line replacements
+          const newContent = edit.content.split("\n");
+          modifiedLines.splice(startIdx, endIdx - startIdx + 1, ...newContent);
+
+          for (let i = edit.startLine; i <= edit.endLine; i++) {
+            this.results.set(i, {
+              applied: true,
+              lineContent:
+                i <= edit.startLine + newContent.length - 1
+                  ? newContent[i - edit.startLine]
+                  : ""
+            });
           }
         }
+      } catch (error) {
+        // Record the error in results
+        this.results.set(edit.startLine, {
+          applied: false,
+          lineContent: this.lines[startIdx],
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+        throw error; // Re-throw to handle at higher level
       }
-
-      // Replace the lines
-      modifiedLines.splice(startIndex, endIndex - startIndex + 1, ...newLines);
     }
 
     return modifiedLines.join("\n");
@@ -110,44 +165,57 @@ class FileEditor {
     return createTwoFilesPatch(
       filepath,
       filepath,
-      this.snapshot.originalContent,
+      this.originalContent,
       modifiedContent,
       "original",
       "modified"
     );
   }
+
+  getResults(): Map<number, EditOperationResult> {
+    return this.results;
+  }
 }
 
 export async function editFile(
-  options: { p: string; e: [number, number, string, string?][] },
+  filepath: string,
+  edits: EditOperation[],
   dryRun = false
-): Promise<string> {
+): Promise<{ diff: string; results: Map<number, EditOperationResult> }> {
   // Read file content
-  const content = await fs.readFile(options.p, "utf-8");
+  const content = await fs.readFile(filepath, "utf-8");
 
   // Create editor instance
   const editor = new FileEditor(content);
 
   // Add all edits
-  for (const [start, end, newContent, search] of options.e) {
-    editor.addEdit({ start, end, content: newContent, search: search ?? "" });
+  for (const edit of edits) {
+    editor.addEdit(edit);
   }
 
-  // Apply edits and get modified content
-  const modifiedContent = editor.applyEdits();
+  try {
+    // Apply edits and get modified content
+    const modifiedContent = editor.applyEdits();
 
-  // Create diff
-  const diff = editor.createDiff(modifiedContent, options.p);
+    // Create diff
+    const diff = editor.createDiff(modifiedContent, filepath);
 
-  // Write changes if not dry run
-  if (!dryRun) {
-    await fs.writeFile(options.p, modifiedContent, "utf-8");
+    // Write changes if not dry run
+    if (!dryRun) {
+      await fs.writeFile(filepath, modifiedContent, "utf-8");
+    }
+
+    // Return both diff and results
+    return {
+      diff,
+      results: editor.getResults()
+    };
+  } catch (error) {
+    if (error instanceof MatchNotFoundError) {
+      throw error;
+    }
+    throw new Error(
+      `Failed to apply edits: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
-
-  // Format and return diff
-  let numBackticks = 3;
-  while (diff.includes("`".repeat(numBackticks))) {
-    numBackticks++;
-  }
-  return `${"`".repeat(numBackticks)}diff\n${diff}${"`".repeat(numBackticks)}\n\n`;
 }

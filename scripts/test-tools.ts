@@ -5,6 +5,7 @@ import { z } from "zod";
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { resetFixtures } from './reset-fixtures.js';
+import fs from 'fs/promises';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,8 +25,9 @@ async function main() {
   // Get path to fixtures directory
   const fixturesDir = path.join(__dirname, '../src/__tests__/fixtures');
 
-  // Reset fixtures before running tests
-  await resetFixtures();
+  // Get path to test file
+  const testMatchesFilePath = path.join(fixturesDir, "test-matches.txt");
+  const testEditsFilePath = path.join(fixturesDir, "test-edits.txt");
 
   // Create transport
   const transport = new StdioClientTransport({
@@ -45,7 +47,6 @@ async function main() {
   );
 
   try {
-    // Connect to server
     await client.connect(transport);
 
     console.log("\n=== Testing basic file info ===");
@@ -55,7 +56,7 @@ async function main() {
         params: {
           name: "get_file_lines",
           arguments: {
-            path: path.join(fixturesDir, "example.txt"),
+            path: testEditsFilePath,
             lineNumbers: [1, 2, 3],
             context: 1
           }
@@ -72,8 +73,14 @@ async function main() {
         params: {
           name: "edit_file_lines",
           arguments: {
-            p: path.join(fixturesDir, "example.txt"),
-            e: [[2, 2, '  console.log("Hello from dry run!");', ""]],
+            p: testEditsFilePath,
+            e: [
+              {
+                startLine: 2,
+                endLine: 2,
+                content: 'console.log("Hello from dry run!");'
+              }
+            ],
             dryRun: true
           }
         }
@@ -110,7 +117,7 @@ async function main() {
           params: {
             name: "get_file_lines",
             arguments: {
-              path: path.join(fixturesDir, "example.txt"),
+              path: testEditsFilePath,
               lineNumbers: [2],
               context: 1
             }
@@ -121,24 +128,7 @@ async function main() {
       console.log(verifyResult.content[0].text);
     }
 
-    console.log("\n=== Testing approve_edit with invalid state ID ===");
-    const invalidStateResult = await client.request(
-      {
-        method: "tools/call",
-        params: {
-          name: "approve_edit",
-          arguments: {
-            stateId: "invalid123"
-          }
-        }
-      },
-      ToolResultSchema
-    );
-    console.log(invalidStateResult.content[0].text);
-
-    console.log("\n=== Testing approve_edit with previosly used state ID ===");
-    // Wait for state to expire (if TTL is short for testing)
-    await new Promise(resolve => setTimeout(resolve, 100));
+    console.log("\n=== Testing approve_edit with previously used state ID ===");
     
     if (stateId) {
       const expiredStateResult = await client.request(
@@ -156,9 +146,252 @@ async function main() {
       console.log(expiredStateResult.content[0].text);
     }
 
-    // Reset fixtures again to clean up
+    console.log("\n=== Testing approve_edit with invalid state ID ===");
+    const invalidStateResult = await client.request(
+      {
+        method: "tools/call",
+        params: {
+          name: "approve_edit",
+          arguments: {
+            stateId: "invalid123"
+          }
+        }
+      },
+      ToolResultSchema
+    );
+    console.log(invalidStateResult.content[0].text);
+
+    console.log("\n=== Testing String Matching ===");
+
+    // Basic string match tests
+    console.log("\n1. Basic: Replace color default value");
+    let result = await client.request(
+      {
+        method: "tools/call",
+        params: {
+          name: "edit_file_lines",
+          arguments: {
+            p: testMatchesFilePath,
+            e: [{
+              startLine: 2,
+              endLine: 2,
+              content: "red",
+              strMatch: "blue"
+            }],
+            dryRun: true
+          }
+        }
+      },
+      ToolResultSchema
+    );
+    console.log(result.content[0].text);
+
+    console.log("\n2. Basic: Replace size default value");
+    result = await client.request(
+      {
+        method: "tools/call",
+        params: {
+          name: "edit_file_lines",
+          arguments: {
+            p: testMatchesFilePath,
+            e: [{
+              startLine: 2,
+              endLine: 2,
+              content: "lg",
+              strMatch: "md"
+            }],
+            dryRun: true
+          }
+        }
+      },
+      ToolResultSchema
+    );
+    console.log(result.content[0].text);
+
+    // Advanced string match tests
+    console.log("\n3. Advanced: Replace multiple theme values while preserving structure");
+    result = await client.request(
+      {
+        method: "tools/call",
+        params: {
+          name: "edit_file_lines",
+          arguments: {
+            p: testMatchesFilePath,
+            e: [{
+              startLine: 25,
+              endLine: 25,
+              content: "system",
+              strMatch: "light"
+            }],
+            dryRun: true
+          }
+        }
+      },
+      ToolResultSchema
+    );
+    console.log(result.content[0].text);
+
+    console.log("\n4. Advanced: Update configuration value with string containing special characters");
+    result = await client.request(
+      {
+        method: "tools/call",
+        params: {
+          name: "edit_file_lines",
+          arguments: {
+            p: testMatchesFilePath,
+            e: [{
+              startLine: 30,
+              endLine: 30,
+              content: "https://api.newdomain.com",
+              strMatch: "https://api.example.com"
+            }],
+            dryRun: true
+          }
+        }
+      },
+      ToolResultSchema
+    );
+    console.log(result.content[0].text);
+
+    console.log("\n5. Advanced: Replace nested prop while preserving indentation");
+    result = await client.request(
+      {
+        method: "tools/call",
+        params: {
+          name: "edit_file_lines",
+          arguments: {
+            p: testMatchesFilePath,
+            e: [{
+              startLine: 9,
+              endLine: 9,
+              content: "Custom subtitle",
+              strMatch: "Default subtitle"
+            }],
+            dryRun: true
+          }
+        }
+      },
+      ToolResultSchema
+    );
+    console.log(result.content[0].text);
+
+    console.log("\n=== Testing Regex Matching ===");
+
+    // Basic regex match tests
+    console.log("\n1. Basic: Replace size prop using regex");
+    result = await client.request(
+      {
+        method: "tools/call",
+        params: {
+          name: "edit_file_lines",
+          arguments: {
+            p: testMatchesFilePath,
+            e: [{
+              startLine: 2,
+              endLine: 2,
+              content: 'size = "xl"',
+              regexMatch: 'size = "[^"]*"'
+            }],
+            dryRun: true
+          }
+        }
+      },
+      ToolResultSchema
+    );
+    console.log(result.content[0].text);
+
+    console.log("\n2. Basic: Replace any API URL");
+    result = await client.request(
+      {
+        method: "tools/call",
+        params: {
+          name: "edit_file_lines",
+          arguments: {
+            p: testMatchesFilePath,
+            e: [{
+              startLine: 30,
+              endLine: 30,
+              content: "http://localhost:3000",
+              regexMatch: 'https?://[^"]*'
+            }],
+            dryRun: true
+          }
+        }
+      },
+      ToolResultSchema
+    );
+    console.log(result.content[0].text);
+
+    // Advanced regex match tests
+    console.log("\n3. Advanced: Replace template literal with regex");
+    result = await client.request(
+      {
+        method: "tools/call",
+        params: {
+          name: "edit_file_lines",
+          arguments: {
+            p: testMatchesFilePath,
+            e: [{
+              startLine: 3,
+              endLine: 3,
+              content: "className={styles.button}",
+              regexMatch: 'className=\\{`[^`]*`\\}'
+            }],
+            dryRun: true
+          }
+        }
+      },
+      ToolResultSchema
+    );
+    console.log(result.content[0].text);
+
+    console.log("\n4. Advanced: Update multiple prop values with capture groups");
+    result = await client.request(
+      {
+        method: "tools/call",
+        params: {
+          name: "edit_file_lines",
+          arguments: {
+            p: testMatchesFilePath,
+            e: [{
+              startLine: 25,
+              endLine: 25,
+              content: "#f5f5f5",
+              regexMatch: '#[a-fA-F0-9]{6}'
+            }],
+            dryRun: true
+          }
+        }
+      },
+      ToolResultSchema
+    );
+    console.log(result.content[0].text);
+
+    console.log("\n5. Advanced: Replace export statement with regex");
+    result = await client.request(
+      {
+        method: "tools/call",
+        params: {
+          name: "edit_file_lines",
+          arguments: {
+            p: testMatchesFilePath,
+            e: [{
+              startLine: 7,
+              endLine: 7,
+              content: "export default",
+              regexMatch: '^export const'
+            }],
+            dryRun: true
+          }
+        }
+      },
+      ToolResultSchema
+    );
+    console.log(result.content[0].text);
+
+    // Reset fixtures before running tests
     await resetFixtures();
-    console.log("\n=== Test fixtures reset to original state ===");
+    console.log("\n=== Resetting fixtures ===");
 
   } catch (error) {
     console.error("Error:", error);

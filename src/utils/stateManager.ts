@@ -1,8 +1,10 @@
+// utils/stateManager.ts
 import { createHash } from "crypto";
+import { EditOperation } from "../types/editTypes.js";
 
 interface EditState {
   path: string;
-  edits: [number, number, string, string][];
+  edits: EditOperation[];
   timestamp: number;
 }
 
@@ -32,42 +34,122 @@ export class StateManager {
     }
   }
 
-  private generateStateId(
-    path: string,
-    edits: [number, number, string, string][]
-  ): string {
-    const content = JSON.stringify({ path, edits });
+  private generateStateId(path: string, edits: EditOperation[]): string {
+    // Sort edits by line numbers to ensure consistent hashing
+    const sortedEdits = [...edits].sort((a, b) =>
+      a.startLine === b.startLine
+        ? a.endLine - b.endLine
+        : a.startLine - b.startLine
+    );
+
+    // Create a deterministic string representation
+    const content = JSON.stringify({
+      path,
+      edits: sortedEdits.map((edit) => ({
+        ...edit,
+        strMatch: edit.strMatch?.trim(),
+        regexMatch: edit.regexMatch?.trim()
+      }))
+    });
+
     return createHash("sha256").update(content).digest("hex").slice(0, 8);
   }
 
-  saveState(path: string, edits: [number, number, string, string][]): string {
+  /**
+   * Save edit state and return a state ID
+   * @param path File path
+   * @param edits Array of edit operations (can be array-style or object-style)
+   * @returns State ID for later retrieval
+   */
+  saveState(
+    path: string,
+    edits: EditOperation[] | [number, number, string, string?][]
+  ): string {
     this.cleanup();
-    const stateId = this.generateStateId(path, edits);
+
+    // Convert array-style edits to object style if needed
+    const normalizedEdits: EditOperation[] = edits.map((edit) => {
+      if (Array.isArray(edit)) {
+        return {
+          startLine: edit[0],
+          endLine: edit[1],
+          content: edit[2],
+          strMatch: edit[3]?.trim()
+        };
+      }
+      return {
+        ...edit,
+        strMatch: edit.strMatch?.trim(),
+        regexMatch: edit.regexMatch?.trim()
+      };
+    });
+
+    const stateId = this.generateStateId(path, normalizedEdits);
+
     this.states.set(stateId, {
       path,
-      edits,
+      edits: normalizedEdits,
       timestamp: Date.now()
     });
+
     return stateId;
   }
 
+  /**
+   * Retrieve edit state by ID
+   * @param stateId State ID from saveState
+   * @returns Edit state if found and not expired, undefined otherwise
+   */
+  getState(stateId: string): EditState | undefined {
+    this.cleanup();
+    const state = this.states.get(stateId);
+
+    if (state && Date.now() - state.timestamp <= this.TTL) {
+      return state;
+    }
+
+    this.states.delete(stateId);
+    return undefined;
+  }
+
+  /**
+   * Delete a state by ID
+   * @param stateId State ID to delete
+   */
   deleteState(stateId: string): void {
     this.cleanup();
     this.states.delete(stateId);
   }
 
-  getState(stateId: string): EditState | undefined {
-    this.cleanup();
-    const state = this.states.get(stateId);
-    if (state && Date.now() - state.timestamp <= this.TTL) {
-      return state;
-    }
-    this.states.delete(stateId);
-    return undefined;
-  }
-
-  // Added for testing purposes
+  /**
+   * Get the current TTL setting (for testing)
+   */
   getTTL(): number {
     return this.TTL;
+  }
+
+  /**
+   * Get the number of active states (for testing)
+   */
+  getActiveStateCount(): number {
+    this.cleanup();
+    return this.states.size;
+  }
+
+  /**
+   * Check if a state exists and is valid
+   * @param stateId State ID to check
+   * @returns boolean indicating if state exists and is valid
+   */
+  isStateValid(stateId: string): boolean {
+    const state = this.getState(stateId);
+    return state !== undefined;
+  }
+
+  /**
+   * Clear all states (mainly for testing)
+   */
+  clearAllStates(): void {
+    this.states.clear();
   }
 }
