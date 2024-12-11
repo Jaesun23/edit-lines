@@ -92,10 +92,10 @@ Use this ID with approve_edit to apply the changes.
 {
   "p": "src/components/App.tsx",
   "e": [{
-    "startLine": 17,
-    "endLine": 20,
-    "content": "    \n      <h2 className=\"title\">{title}\n      <p className=\"subtitle\">{subtitle}\n    ",
-    "regexMatch": "]*>[\\s\\S]*?"
+    "startLine": 16,
+    "endLine": 19,
+    "content": "    <div className={cardClass}>\n      <h2 className=\"title\">{title}</h2>\n      <p className=\"subtitle\">{subtitle}</p>\n    </div>",
+    "regexMatch": "<div[^>]*>[\\s\\S]*?</div>"
   }],
   "dryRun": true
 }
@@ -111,12 +111,12 @@ Index: src/components/App.tsx
    const cardClass = `card-${theme} size-${size}`;
    
    return (
-     
--      {title}
--      {subtitle}
-+      {title}
-+      {subtitle}
-     
+     <div className={cardClass}>
+-      <h2>{title}</h2>
+-      <p>{subtitle}</p>
++      <h2 className="title">{title}</h2>
++      <p className="subtitle">{subtitle}</p>
+     </div>
    );
  };
 ```
@@ -129,10 +129,10 @@ Use this ID with approve_edit to apply the changes.
 {
   "p": "src/components/App.tsx",
   "e": [{
-    "startLine": 8,
+    "startLine": 7,
     "endLine": 12,
-    "content": "  title,\n  subtitle = \"New default\",\n  theme = \"modern\",\n  size = \"responsive\"",
-    "regexMatch": "\\s*title,[\\s\\S]*?size = \"lg\""
+    "content": "export const Card = ({\n  title,\n  subtitle = \"New default\",\n  theme = \"modern\",\n  size = \"responsive\"\n}) => {",
+    "regexMatch": "export const Card[\\s\\S]*?\\) => \\{"
   }],
   "dryRun": true
 }
@@ -145,7 +145,6 @@ Index: src/components/App.tsx
 --- src/components/App.tsx        original
 +++ src/components/App.tsx        modified
 @@ -5,11 +5,11 @@
- 
  // Component with multiple props and nested structure
  export const Card = ({
    title,
@@ -171,8 +170,8 @@ Use this ID with approve_edit to apply the changes.
   "e": [{
     "startLine": 29,
     "endLine": 32,
-    "content": "  baseUrl: \"https://api.newexample.com\",\n  timeout: 10000,\n  maxRetries: 5",
-    "regexMatch": "\\s*apiUrl:[\\s\\S]*?retries: \\d+"
+    "content": "const CONFIG = {\n  baseUrl: \"https://api.newexample.com\",\n  timeout: 10000,\n  maxRetries: 5",
+    "regexMatch": "const CONFIG[\\s\\S]*?retries: \\d+"
   }],
   "dryRun": true
 }
@@ -196,10 +195,9 @@ Index: src/components/App.tsx
 +  timeout: 10000,
 +  maxRetries: 5
  };
-
+```
 State ID: 20e93c34
 Use this ID with approve_edit to apply the changes.
-```
 
 5. Flexible Whitespace Matching
 ```json
@@ -215,8 +213,23 @@ Use this ID with approve_edit to apply the changes.
 }
 ```
 
-Output works even with extra spaces in the match pattern
-
+Output:
+```diff
+Index: src/components/App.tsx
+===================================================================
+--- src/components/App.tsx        original
++++ src/components/App.tsx        modified
+@@ -5,9 +5,9 @@
+ // Component with multiple props and nested structure
+ export const Card = ({
+   title,
+-  subtitle = "Default subtitle",
++  description
+   theme = "light",
+   size = "lg",
+ }) => {
+   const cardClass = `card-${theme} size-${size}`;
+```
 
 ### Additional Tools
 
@@ -258,8 +271,8 @@ Apply changes from a previous dry run of `edit_file_lines`. This tool provides a
   "e": [{
     "startLine": 2,
     "endLine": 2,
-    "content": "const Button = ({ color = \"primary\", size = \"md\" }) => {",
-    "strMatch": "const Button = ({ color = \"blue\", size = \"md\" }) => {"
+    "content": "primary",
+    "strMatch": "blue"
   }],
   "dryRun": true
 }
