@@ -55,7 +55,6 @@ const CONFIG = {
 
 1. Simple String Replacement
 ```json
-// Input
 {
   "p": "src/components/App.tsx",
   "e": [{
@@ -66,8 +65,10 @@ const CONFIG = {
   }],
   "dryRun": true
 }
+```
 
-// Output
+Output:
+```diff
 Index: src/components/App.tsx
 ===================================================================
 --- src/components/App.tsx        original
@@ -80,14 +81,14 @@ Index: src/components/App.tsx
  };
  
  // Component with multiple props and nested structure
+ ```
 
 State ID: fcbf740a
 Use this ID with approve_edit to apply the changes.
-```
 
-2. Multi-line Content with Preserved Structure
+
+2. Multi-line Content with Preserved Structure  
 ```json
-// Input
 {
   "p": "src/components/App.tsx",
   "e": [{
@@ -98,8 +99,10 @@ Use this ID with approve_edit to apply the changes.
   }],
   "dryRun": true
 }
+```
 
-// Output
+Output:
+```diff
 Index: src/components/App.tsx
 ===================================================================
 --- src/components/App.tsx        original
@@ -116,14 +119,13 @@ Index: src/components/App.tsx
      
    );
  };
-
+```
 State ID: f2ce973f
 Use this ID with approve_edit to apply the changes.
-```
+
 
 3. Complex JSX Structure Modification
 ```json
-// Input
 {
   "p": "src/components/App.tsx",
   "e": [{
@@ -134,8 +136,10 @@ Use this ID with approve_edit to apply the changes.
   }],
   "dryRun": true
 }
+```
 
-// Output
+Output:
+```diff
 Index: src/components/App.tsx
 ===================================================================
 --- src/components/App.tsx        original
@@ -155,14 +159,13 @@ Index: src/components/App.tsx
    const cardClass = `card-${theme} size-${size}`;
    
    return (
-
+```   
 State ID: f1f1d27b
 Use this ID with approve_edit to apply the changes.
-```
+
 
 4. Configuration Update with Whitespace Preservation
 ```json
-// Input
 {
   "p": "src/components/App.tsx",
   "e": [{
@@ -173,8 +176,10 @@ Use this ID with approve_edit to apply the changes.
   }],
   "dryRun": true
 }
+```
 
-// Output
+Output:
+```diff
 Index: src/components/App.tsx
 ===================================================================
 --- src/components/App.tsx        original
@@ -198,7 +203,6 @@ Use this ID with approve_edit to apply the changes.
 
 5. Flexible Whitespace Matching
 ```json
-// Input
 {
   "p": "src/components/App.tsx",
   "e": [{
@@ -209,9 +213,10 @@ Use this ID with approve_edit to apply the changes.
   }],
   "dryRun": true
 }
-
-// Output works even with extra spaces in the match pattern
 ```
+
+Output works even with extra spaces in the match pattern
+
 
 ### Additional Tools
 
@@ -219,14 +224,15 @@ Use this ID with approve_edit to apply the changes.
 Inspect specific lines in a file with optional context lines. This tool is useful for verifying line content before making edits.
 
 ```json
-// Input
 {
   "path": "src/components/App.tsx",
   "lineNumbers": [1, 2, 3],
   "context": 1
 }
+```
 
-// Output
+Output:
+```
 Line 1:
 > 1: // Basic component with props
   2: const Button = ({ color = "blue", size = "md" }) => {
@@ -246,8 +252,7 @@ Line 3:
 Apply changes from a previous dry run of `edit_file_lines`. This tool provides a two-step editing process for safety. Here is an example workflow:
 
 1. First, make a dry run edit:
-```json
-// Input
+```json 
 {
   "p": "src/components/App.tsx",
   "e": [{
@@ -258,8 +263,10 @@ Apply changes from a previous dry run of `edit_file_lines`. This tool provides a
   }],
   "dryRun": true
 }
+```
 
-// Output
+Output:
+```diff
 Index: src/components/App.tsx
 ===================================================================
 --- src/components/App.tsx        original
@@ -270,19 +277,21 @@ Index: src/components/App.tsx
 +const Button = ({ color = "primary", size = "md" }) => {
    return Click me;
  };
+ ```
 
 State ID: fcbf740a
 Use this ID with approve_edit to apply the changes.
-```
+
 
 2. Then, approve the changes using the state ID:
 ```json
-// Input
 {
   "stateId": "fcbf740a"
 }
+```
 
-// Output
+Output:
+```diff
 Index: src/components/App.tsx
 ===================================================================
 --- src/components/App.tsx        original
@@ -297,14 +306,15 @@ Index: src/components/App.tsx
 
 3. Verify the changes:
 ```json
-// Input
 {
   "path": "src/components/App.tsx",
   "lineNumbers": [2],
   "context": 1
 }
+```
 
-// Output
+Output:
+```
 Line 2:
   1: // Basic component with props
 > 2: const Button = ({ color = "primary", size = "md" }) => {
@@ -313,12 +323,13 @@ Line 2:
 
 Note that state IDs expire after a short time for security. Attempting to use an expired or invalid state ID will result in an error:
 ```json
-// Input
 {
   "stateId": "invalid123"
 }
+```
 
-// Output
+Output:
+```
 Error: Invalid or expired state ID
 ```
 
