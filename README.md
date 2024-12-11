@@ -18,7 +18,7 @@ Example file (`src/components/App.tsx`):
 ```typescript
 // Basic component with props
 const Button = ({ color = "blue", size = "md" }) => {
-  return Click me;
+  return <button className={`btn-${color} size-${size}`}>Click me</button>;
 };
 
 // Component with multiple props and nested structure
@@ -31,10 +31,10 @@ export const Card = ({
   const cardClass = `card-${theme} size-${size}`;
   
   return (
-    
-      {title}
-      {subtitle}
-    
+    <div className={cardClass}>
+      <h2>{title}</h2>
+      <p>{subtitle}</p>
+    </div>
   );
 };
 
