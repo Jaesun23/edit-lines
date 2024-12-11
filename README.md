@@ -1,4 +1,4 @@
-# edit-file-lines MCP Server
+# Edit File Lines MCP Server
 
 A TypeScript-based MCP server that provides tools for making precise line-based edits to text files within allowed directories.
 
@@ -14,346 +14,219 @@ Make line-based edits to a file using string or regex pattern matching. Each edi
 - Handle multiple lines and multiple edits
 - Preview changes with dry run mode
 
-1. Basic String Match
+Example file (`src/components/App.tsx`):
+```typescript
+// Basic component with props
+const Button = ({ color = "blue", size = "md" }) => {
+  return Click me;
+};
+
+// Component with multiple props and nested structure
+export const Card = ({
+  title,
+  subtitle = "Default subtitle",
+  theme = "light",
+  size = "lg",
+}) => {
+  const cardClass = `card-${theme} size-${size}`;
+  
+  return (
+    
+      {title}
+      {subtitle}
+    
+  );
+};
+
+// Constants and configurations
+const THEME = {
+  light: { bg: "#ffffff", text: "#000000" },
+  dark: { bg: "#000000", text: "#ffffff" },
+};
+
+const CONFIG = {
+  apiUrl: "https://api.example.com",
+  timeout: 5000,
+  retries: 3,
+};
+```
+
+### Example Use Cases
+
+1. Simple String Replacement
 ```json
 // Input
 {
-  "p": "src/components/Button.tsx",
+  "p": "src/components/App.tsx",
   "e": [{
     "startLine": 2,
     "endLine": 2,
-    "content": "red",
+    "content": "primary",
     "strMatch": "blue"
   }],
   "dryRun": true
 }
 
 // Output
-Index: src/components/Button.tsx
+Index: src/components/App.tsx
 ===================================================================
---- src/components/Button.tsx	original
-+++ src/components/Button.tsx	modified
+--- src/components/App.tsx        original
++++ src/components/App.tsx        modified
 @@ -1,6 +1,6 @@
  // Basic component with props
 -const Button = ({ color = "blue", size = "md" }) => {
-+const Button = ({ color = "red", size = "md" }) => {
++const Button = ({ color = "primary", size = "md" }) => {
    return Click me;
  };
+ 
+ // Component with multiple props and nested structure
 
-State ID: a1b2c3d4
+State ID: fcbf740a
 Use this ID with approve_edit to apply the changes.
 ```
 
-2. Multiple Edits
+2. Multi-line Content with Preserved Structure
 ```json
 // Input
 {
-  "p": "src/config.ts",
-  "e": [
-    {
-      "startLine": 29,
-      "endLine": 29,
-      "content": "10000",
-      "strMatch": "5000"
-    },
-    {
-      "startLine": 30,
-      "endLine": 30,
-      "content": "5",
-      "strMatch": "3"
-    }
-  ],
-  "dryRun": true
-}
-
-// Output
-Index: src/config.ts
-===================================================================
---- src/config.ts	original
-+++ src/config.ts	modified
-@@ -27,8 +27,8 @@
- const CONFIG = {
-   apiUrl: "https://api.example.com",
--  timeout: 5000,
--  retries: 3,
-+  timeout: 10000,
-+  retries: 5,
- };
-
-State ID: b3f28a9c
-Use this ID with approve_edit to apply the changes.
-```
-
-3. Multi-line Edit with Regex
-```json
-// Input
-{
-  "p": "src/components/Card.tsx",
+  "p": "src/components/App.tsx",
   "e": [{
-    "startLine": 15,
-    "endLine": 18,
-    "content": "    \n      <h2 className=\"title\">{title}\n      <h3 className=\"subtitle\">{subtitle}\n    ",
-    "regexMatch": "]*>\\s*]*>[^<]*\\s*]*>[^<]*\\s*"
+    "startLine": 17,
+    "endLine": 20,
+    "content": "    \n      <h2 className=\"title\">{title}\n      <p className=\"subtitle\">{subtitle}\n    ",
+    "regexMatch": "]*>[\\s\\S]*?"
   }],
   "dryRun": true
 }
 
 // Output
-Index: src/components/Card.tsx
+Index: src/components/App.tsx
 ===================================================================
---- src/components/Card.tsx	original
-+++ src/components/Card.tsx	modified
-@@ -12,10 +12,10 @@
+--- src/components/App.tsx        original
++++ src/components/App.tsx        modified
+@@ -13,10 +13,10 @@
    const cardClass = `card-${theme} size-${size}`;
    
    return (
--    
+     
 -      {title}
 -      {subtitle}
--    
-+    
 +      {title}
 +      {subtitle}
-+    
+     
    );
  };
 
-State ID: c4d59e2f
+State ID: f2ce973f
 Use this ID with approve_edit to apply the changes.
 ```
 
-4. Failed Match Example
+3. Complex JSX Structure Modification
 ```json
 // Input
 {
-  "p": "src/components/Button.tsx",
+  "p": "src/components/App.tsx",
   "e": [{
-    "startLine": 2,
-    "endLine": 2,
-    "content": "red",
-    "strMatch": "green"
-  }],
-  "dryRun": true
-}
-
-// Output
-Error: No string match found for "green" on line 2
-```
-
-5. Invalid Line Range Example
-```json
-// Input
-{
-  "p": "src/components/Button.tsx",
-  "e": [{
-    "startLine": 100,
-    "endLine": 101,
-    "content": "console.log('test')"
-  }],
-  "dryRun": true
-}
-
-// Output
-Error: Invalid line range: file has 35 lines but range is 100-101
-```
-
-6. Overlapping Edits Error
-```json
-// Input
-{
-  "p": "src/components/Button.tsx",
-  "e": [
-    {
-      "startLine": 2,
-      "endLine": 3,
-      "content": "new content 1"
-    },
-    {
-      "startLine": 3,
-      "endLine": 4,
-      "content": "new content 2"
-    }
-  ],
-  "dryRun": true
-}
-
-// Output
-Error: Line 3 is affected by multiple edits
-```
-
-### Advanced Usage
-
-#### Complex Regex Pattern Matching
-Use regex for complex pattern matching:
-```json
-{
-  "p": "src/theme.ts",
-  "e": [{
-    "startLine": 3,
-    "endLine": 3,
-    "content": "className={styles.button}",
-    "regexMatch": "className=\\{`[^`]*`\\}"
-  }],
-  "dryRun": true
-}
-```
-
-#### Mixed String and Regex Matching
-Combine different matching types in one operation:
-```json
-{
-  "p": "src/App.tsx",
-  "e": [
-    {
-      "startLine": 5,
-      "endLine": 5,
-      "content": "xl",
-      "strMatch": "md"
-    },
-    {
-      "startLine": 10,
-      "endLine": 10,
-      "content": "http://localhost:3000",
-      "regexMatch": "https?://[^\"]*"
-    }
-  ],
-  "dryRun": true
-}
-```
-
-### Matching Rules
-
-#### String Matching (`strMatch`)
-- Case-sensitive exact matching
-- Must match the entire string exactly
-- Preserves surrounding whitespace and formatting
-- Throws error if string not found in specified lines
-- Optional parameter - if omitted, replaces entire line(s)
-
-#### Regex Matching (`regexMatch`)
-- Uses JavaScript regex syntax
-- Global flag (`g`) is automatically applied
-- Preserves surrounding content and formatting
-- Throws error if pattern not found in specified lines
-- Optional parameter - if omitted, replaces entire line(s)
-
-#### Matching Priority
-- Cannot use both `strMatch` and `regexMatch` in the same edit
-- Edit operations are applied in reverse line order
-- Each line can only be affected by one edit operation
-
-### Common Use Cases
-
-1. Updating Component Props
-```json
-{
-  "p": "src/components/Button.tsx",
-  "e": [{
-    "startLine": 5,
-    "endLine": 5,
-    "content": "lg",
-    "strMatch": "md"
-  }],
-  "dryRun": true
-}
-```
-
-2. Changing Configuration Values
-```json
-{
-  "p": "src/config.ts",
-  "e": [{
-    "startLine": 3,
-    "endLine": 3,
-    "content": "10000",
-    "strMatch": "5000"
-  }],
-  "dryRun": true
-}
-```
-
-3. Updating JSX Structure
-```json
-{
-  "p": "src/components/Card.tsx",
-  "e": [{
-    "startLine": 10,
+    "startLine": 8,
     "endLine": 12,
-    "content": "      <div className=\"card-header\">\n        {title}\n      "
+    "content": "  title,\n  subtitle = \"New default\",\n  theme = \"modern\",\n  size = \"responsive\"",
+    "regexMatch": "\\s*title,[\\s\\S]*?size = \"lg\""
   }],
   "dryRun": true
 }
+
+// Output
+Index: src/components/App.tsx
+===================================================================
+--- src/components/App.tsx        original
++++ src/components/App.tsx        modified
+@@ -5,11 +5,11 @@
+ 
+ // Component with multiple props and nested structure
+ export const Card = ({
+   title,
+-  subtitle = "Default subtitle",
+-  theme = "light",
+-  size = "lg",
++  subtitle = "New default",
++  theme = "modern",
++  size = "responsive"
+ }) => {
+   const cardClass = `card-${theme} size-${size}`;
+   
+   return (
+
+State ID: f1f1d27b
+Use this ID with approve_edit to apply the changes.
 ```
 
-4. Replacing URL Patterns
+4. Configuration Update with Whitespace Preservation
 ```json
+// Input
 {
-  "p": "src/api/client.ts",
+  "p": "src/components/App.tsx",
   "e": [{
-    "startLine": 5,
-    "endLine": 5,
-    "content": "http://localhost:3000",
-    "regexMatch": "https?://[^\"]*"
+    "startLine": 29,
+    "endLine": 32,
+    "content": "  baseUrl: \"https://api.newexample.com\",\n  timeout: 10000,\n  maxRetries: 5",
+    "regexMatch": "\\s*apiUrl:[\\s\\S]*?retries: \\d+"
   }],
   "dryRun": true
 }
+
+// Output
+Index: src/components/App.tsx
+===================================================================
+--- src/components/App.tsx        original
++++ src/components/App.tsx        modified
+@@ -26,8 +26,8 @@
+   dark: { bg: "#000000", text: "#ffffff" },
+ };
+ 
+ const CONFIG = {
+-  apiUrl: "https://api.example.com",
+-  timeout: 5000,
+-  retries: 3,
++  baseUrl: "https://api.newexample.com",
++  timeout: 10000,
++  maxRetries: 5
+ };
+
+State ID: 20e93c34
+Use this ID with approve_edit to apply the changes.
 ```
 
-5. Updating CSS Classes
+5. Flexible Whitespace Matching
 ```json
+// Input
 {
-  "p": "src/styles/components.css",
+  "p": "src/components/App.tsx",
   "e": [{
-    "startLine": 10,
-    "endLine": 10,
-    "content": "4px",
-    "regexMatch": "\\d+px"
+    "startLine": 9,
+    "endLine": 9,
+    "content": "description",
+    "strMatch": "subtitle   =   \"Default subtitle\""  // Extra spaces are handled
   }],
   "dryRun": true
 }
-```
 
+// Output works even with extra spaces in the match pattern
+```
 
 ### Additional Tools
 
 #### `get_file_lines`
 Inspect specific lines in a file with optional context lines. This tool is useful for verifying line content before making edits.
 
-##### Parameters
-```typescript
-{
-  "path": string,        // Path to the file
-  "lineNumbers": number[],  // Array of line numbers to inspect
-  "context": number        // Optional: Number of context lines before/after (default: 0)
-}
-```
-
-##### Examples
-
-1. Basic Line Inspection
 ```json
+// Input
 {
-  "path": "src/app.js",
-  "lineNumbers": [5],
-  "context": 0
-}
-```
-Response:
-```
-Line 5:
-> 5: const apiUrl = 'https://api.example.com';
-```
-
-2. Multiple Lines with Context
-```json
-{
-  "path": "src/components/Button.tsx",
+  "path": "src/components/App.tsx",
   "lineNumbers": [1, 2, 3],
   "context": 1
 }
-```
-Response:
-```
+
+// Output
 Line 1:
 > 1: // Basic component with props
   2: const Button = ({ color = "blue", size = "md" }) => {
@@ -361,91 +234,113 @@ Line 1:
 Line 2:
   1: // Basic component with props
 > 2: const Button = ({ color = "blue", size = "md" }) => {
-  3:   return <button className={`btn-${color} size-${size}`}>Click me</button>;
+  3:   return Click me;
 
 Line 3:
   2: const Button = ({ color = "blue", size = "md" }) => {
-> 3:   return <button className={`btn-${color} size-${size}`}>Click me</button>;
+> 3:   return Click me;
   4: };
 ```
 
-
 #### `approve_edit`
-Apply changes from a previous dry run of `edit_file_lines`. This tool provides a two-step editing process for safety.
+Apply changes from a previous dry run of `edit_file_lines`. This tool provides a two-step editing process for safety. Here is an example workflow:
 
-##### Parameters
-```typescript
-{
-  "stateId": string  // State ID from a previous dry run
-}
-```
-
-##### Examples
-
-1. Basic Approval Flow
-First, make a dry run edit:
+1. First, make a dry run edit:
 ```json
+// Input
 {
-  "p": "src/components/Button.tsx",
+  "p": "src/components/App.tsx",
   "e": [{
     "startLine": 2,
     "endLine": 2,
-    "content": "  console.log('Hello from dry run!')",
-    "strMatch": "  console.log('Hello');"
+    "content": "const Button = ({ color = \"primary\", size = \"md\" }) => {",
+    "strMatch": "const Button = ({ color = \"blue\", size = \"md\" }) => {"
   }],
   "dryRun": true
 }
-```
-Response:
-```
-[diff output]
-State ID: a1b2c3d4
+
+// Output
+Index: src/components/App.tsx
+===================================================================
+--- src/components/App.tsx        original
++++ src/components/App.tsx        modified
+@@ -1,6 +1,6 @@
+ // Basic component with props
+-const Button = ({ color = "blue", size = "md" }) => {
++const Button = ({ color = "primary", size = "md" }) => {
+   return Click me;
+ };
+
+State ID: fcbf740a
 Use this ID with approve_edit to apply the changes.
 ```
 
-Then, approve the changes:
+2. Then, approve the changes using the state ID:
 ```json
+// Input
 {
-  "stateId": "a1b2c3d4"
+  "stateId": "fcbf740a"
 }
-```
-Response shows the applied changes in diff format.
 
-2. Example Workflow
-```typescript
-// 1. Check current content
+// Output
+Index: src/components/App.tsx
+===================================================================
+--- src/components/App.tsx        original
++++ src/components/App.tsx        modified
+@@ -1,6 +1,6 @@
+ // Basic component with props
+-const Button = ({ color = "blue", size = "md" }) => {
++const Button = ({ color = "primary", size = "md" }) => {
+   return Click me;
+ };
+```
+
+3. Verify the changes:
+```json
+// Input
 {
-  "path": "src/config.js",
-  "lineNumbers": [5],
+  "path": "src/components/App.tsx",
+  "lineNumbers": [2],
   "context": 1
 }
 
-// 2. Make dry run edit
-{
-  "p": "src/config.js",
-  "e": [{
-    "startLine": 5,
-    "endLine": 5,
-    "content": "const DEBUG = true;",
-    "strMatch": "const DEBUG = false;"
-  }],
-  "dryRun": true
-}
-
-// 3. Review the diff output and note the state ID
-
-// 4. Approve the changes
-{
-  "stateId": "received_state_id"
-}
-
-// 5. Verify the changes
-{
-  "path": "src/config.js",
-  "lineNumbers": [5],
-  "context": 1
-}
+// Output
+Line 2:
+  1: // Basic component with props
+> 2: const Button = ({ color = "primary", size = "md" }) => {
+  3:   return Click me;
 ```
+
+Note that state IDs expire after a short time for security. Attempting to use an expired or invalid state ID will result in an error:
+```json
+// Input
+{
+  "stateId": "invalid123"
+}
+
+// Output
+Error: Invalid or expired state ID
+```
+
+### Important Notes
+
+1. Whitespace Handling
+   - The tool intelligently handles whitespace in both string and regex matches
+   - Original indentation is preserved in replacements
+   - Multiple spaces between tokens are normalized for matching
+
+2. Pattern Matching
+   - String matches (`strMatch`) are whitespace-normalized
+   - Regex patterns (`regexMatch`) support look-ahead and look-behind
+   - Cannot use both `strMatch` and `regexMatch` in the same edit
+   - Overlapping regex patterns are detected and prevented
+
+3. Best Practices
+   - Always use dry run first to verify changes
+   - Review the diff output before approving changes
+   - Keep edit operations focused and atomic
+   - Use appropriate pattern matching for your use case
+
 
 ## Development
 
