@@ -111,6 +111,24 @@ async function main() {
     );
     console.log(searchResult.content[0].text);
 
+    console.log("\n=== Testing basic search_file with regex ===");
+    const searchResultRegex = await client.request(
+      {
+        method: "tools/call",
+        params: {
+          name: "search_file",
+          arguments: {
+            path: testMatchesFilePath,
+            pattern: "<[A-Z]\\w+\\s",
+            type: "regex",
+            contextLines: 1
+          }
+        }
+      },
+      ToolResultSchema
+    );
+    console.log(searchResultRegex.content[0].text);
+
     console.log("\n=== Testing basic edit_file_lines ===");
     const basicEdit = {
       startLine: 2,

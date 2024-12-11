@@ -181,13 +181,12 @@ The stateId is only valid for 1 minute.`,
       },
       {
         name: "search_file",
-        description: `Search a file for text or regex patterns. Features:
+        description: `Search a file for text or regex patterns and return line numbers, content, and surrounding context. Useful for finding exact locations before making edits with edit_file_lines. Features:
   - Simple text search with optional case sensitivity
   - Regular expression support with multiline mode
   - Whole word matching option
   - Configurable context lines
-  - Returns line numbers, content, and surrounding context
-Useful for finding exact locations before making edits.`,
+  - Returns line numbers, content, and surrounding context`,
         inputSchema: zodToJsonSchema(SearchFileArgsSchema) as ToolInput
       }
     ]
