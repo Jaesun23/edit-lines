@@ -65,14 +65,14 @@ describe("FileEditor", () => {
         content: "    <div myclass={cardClass}>",
         strMatch: "    <div className={cardClass}>"
       };
-    
+
       const { diff, results } = await editFile(testMatchesPath, [edit], true);
-      
-      expect(diff).toContain('-    <div className={cardClass}>');
-      expect(diff).toContain('+    <div myclass={cardClass}>');
+
+      expect(diff).toContain("-    <div className={cardClass}>");
+      expect(diff).toContain("+    <div myclass={cardClass}>");
       expect(results.get(16)?.applied).toBe(true);
     });
-    
+
     it("should handle string matches with mixed indentation", async () => {
       const edit: EditOperation = {
         startLine: 17,
@@ -80,11 +80,11 @@ describe("FileEditor", () => {
         content: "        <h2>{title}</h2>",
         strMatch: "      <h2>{title}</h2>"
       };
-    
+
       const { diff, results } = await editFile(testMatchesPath, [edit], true);
-      
-      expect(diff).toContain('-      <h2>{title}</h2>');
-      expect(diff).toContain('+        <h2>{title}</h2>');
+
+      expect(diff).toContain("-      <h2>{title}</h2>");
+      expect(diff).toContain("+        <h2>{title}</h2>");
       expect(results.get(17)?.applied).toBe(true);
     });
   });

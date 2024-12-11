@@ -148,49 +148,49 @@ class FileEditor {
   ): string {
     const { content, indentation } = lineMetadata;
     const fullLine = indentation + content;
-  
+
     // If no matching criteria specified, replace the entire line
     if (!edit.strMatch && !edit.regexMatch) {
       return this.preserveIndentation(edit.content, indentation);
     }
-  
+
     if (edit.strMatch) {
       // For string matches, first try exact match with normalized line endings
       const normalizedLine = normalizeLineEndings(fullLine);
       const normalizedMatch = normalizeLineEndings(edit.strMatch);
-  
+
       if (normalizedLine.includes(normalizedMatch)) {
         // Use exact match when found
         return fullLine.replace(normalizedMatch, edit.content);
       }
-  
+
       // If exact match fails, try flexible whitespace matching
-      const flexMatch = normalizedLine.replace(/\s+/g, ' ').trim();
-      const flexTarget = normalizedMatch.replace(/\s+/g, ' ').trim();
-  
+      const flexMatch = normalizedLine.replace(/\s+/g, " ").trim();
+      const flexTarget = normalizedMatch.replace(/\s+/g, " ").trim();
+
       if (!flexMatch.includes(flexTarget)) {
         throw new MatchNotFoundError(lineNumber, edit.strMatch, false);
       }
-  
+
       // Create a regex that matches the original string pattern with flexible whitespace
       const escapedPattern = flexTarget
-        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
-        .replace(/\s+/g, '\\s+'); // Replace spaces with flexible whitespace pattern
-  
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&") // Escape regex special chars
+        .replace(/\s+/g, "\\s+"); // Replace spaces with flexible whitespace pattern
+
       const replacementRegex = new RegExp(escapedPattern);
       return fullLine.replace(replacementRegex, edit.content);
     }
-  
+
     if (edit.regexMatch) {
       try {
         const regex = new RegExp(edit.regexMatch, "g");
         if (!regex.test(fullLine)) {
           throw new MatchNotFoundError(lineNumber, edit.regexMatch, true);
         }
-  
+
         // Reset lastIndex after test
         regex.lastIndex = 0;
-  
+
         // Replace while preserving indentation
         return fullLine.replace(regex, (match, ...args) => {
           // Handle named capture groups
@@ -207,13 +207,14 @@ class FileEditor {
         if (error instanceof MatchNotFoundError) {
           throw error;
         }
-        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
         throw new Error(
           `Invalid regex pattern "${edit.regexMatch}": ${errorMessage}`
         );
       }
     }
-  
+
     return fullLine; // Fallback, should never reach here
   }
 

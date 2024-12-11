@@ -94,6 +94,23 @@ async function main() {
     );
     console.log(getFileResult.content[0].text);
 
+    // Basic search_file test
+    console.log("\n=== Testing basic search_file ===");
+    const searchResult = await client.request(
+      {
+        method: "tools/call",
+        params: {
+          name: "search_file",
+          arguments: {
+            path: testMatchesFilePath,
+            pattern: "CONFIG",
+          }
+        }
+      },
+      ToolResultSchema
+    );
+    console.log(searchResult.content[0].text);
+
     console.log("\n=== Testing basic edit_file_lines ===");
     const basicEdit = {
       startLine: 2,

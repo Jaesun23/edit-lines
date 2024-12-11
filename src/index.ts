@@ -12,8 +12,10 @@ import {
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { EditFileArgsSchema, EditOperation } from "./types/editTypes.js";
+import { SearchError, SearchFileArgsSchema } from "./types/searchTypes.js";
 import { approveEdit } from "./utils/approveEdit.js";
 import { editFile } from "./utils/fileEditor.js";
+import { searchFile } from "./utils/fileSearch.js";
 import { getLineInfo } from "./utils/lineInfo.js";
 import { StateManager } from "./utils/stateManager.js";
 
@@ -114,14 +116,16 @@ async function validatePath(requestedPath: string): Promise<string> {
 
 // Schema for get_line_info
 const GetLineInfoArgsSchema = z.object({
-  path: z.string(),
-  lineNumbers: z.array(z.number().int().min(1)),
+  path: z.string().describe("Path to the file to get line info for"),
+  lineNumbers: z
+    .array(z.number().int().min(1))
+    .describe("Line numbers to get info for"),
   context: z
     .number()
     .int()
     .min(0)
-    .default(0)
-    .describe("Number of context lines before and after")
+    .default(2)
+    .describe("Number of context lines before and after. default: 2")
 });
 
 // Add to server setup section
@@ -174,6 +178,17 @@ The stateId is only valid for 1 minute.`,
           "and optional context lines. Useful for verifying line numbers before making edits. " +
           "Only works within allowed directories.",
         inputSchema: zodToJsonSchema(GetLineInfoArgsSchema) as ToolInput
+      },
+      {
+        name: "search_file",
+        description: `Search a file for text or regex patterns. Features:
+  - Simple text search with optional case sensitivity
+  - Regular expression support with multiline mode
+  - Whole word matching option
+  - Configurable context lines
+  - Returns line numbers, content, and surrounding context
+Useful for finding exact locations before making edits.`,
+        inputSchema: zodToJsonSchema(SearchFileArgsSchema) as ToolInput
       }
     ]
   };
@@ -197,11 +212,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Convert array-style edits to object style
         const edits: EditOperation[] = parsed.data.e;
 
-        const { diff, results } = await editFile(
-          validPath,
-          edits,
-          parsed.data.dryRun
-        );
+        const { diff } = await editFile(validPath, edits, parsed.data.dryRun);
 
         // For dry run, save state and return stateId
         if (parsed.data.dryRun) {
@@ -285,6 +296,77 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           ],
           isError: true
         };
+      }
+    }
+
+    if (name === "search_file") {
+      const parsed = SearchFileArgsSchema.safeParse(args);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid arguments: ${JSON.stringify(parsed.error.errors, null, 2)}`
+        );
+      }
+
+      try {
+        const validPath = await validatePath(parsed.data.path);
+        const result = await searchFile(validPath, parsed.data);
+
+        // Format results for display
+        const output = [
+          `Found ${result.totalMatches} matches in ${result.executionTime.toFixed(1)}ms:`,
+          `File size: ${(result.fileSize / 1024).toFixed(1)}KB`,
+          ""
+        ];
+
+        result.matches.forEach((match, i) => {
+          output.push(
+            `Match ${i + 1}: Line ${match.line}, Column ${match.column}`,
+            "----------------------------------------"
+          );
+
+          // Split context into lines and get the matched line index
+          const contextLines = match.context.split("\n");
+          const matchLineIndex = contextLines.findIndex(
+            (line) => line === match.content
+          );
+          const startLineNumber = match.line - matchLineIndex;
+
+          // Add each context line with line number
+          contextLines.forEach((line, idx) => {
+            const lineNumber = startLineNumber + idx;
+            const linePrefix = lineNumber.toString().padStart(4, " ");
+            const indicator = lineNumber === match.line ? ">" : " ";
+            output.push(`${indicator} ${linePrefix} | ${line}`);
+          });
+
+          output.push(""); // Empty line between matches
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: output.join("\n")
+            }
+          ]
+        };
+      } catch (error) {
+        if (error instanceof SearchError) {
+          const details = error.details
+            ? `\nDetails: ${JSON.stringify(error.details, null, 2)}`
+            : "";
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Search error: ${error.message}${details}`
+              }
+            ],
+            isError: true
+          };
+        }
+        throw error;
       }
     }
 
