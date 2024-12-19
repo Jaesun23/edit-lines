@@ -6,7 +6,7 @@
   "author": "oakenai",
   "type": "module",
   "bin": {
-    "edit-local-file": "./build/index.js"
+    "edit-file-lines": "./build/index.js"
   },
   "files": [
     "build"

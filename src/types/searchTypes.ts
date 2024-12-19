@@ -32,16 +32,16 @@ export const SearchFileArgsSchema = z.object({
     .number()
     .int()
     .min(0)
-    .max(10)
+    .max(50)
     .default(2)
-    .describe("Number of context lines before and after match. default: 2"),
+    .describe("Number of context lines before and after match. default: 2, max: 50"),
   maxMatches: z
     .number()
     .int()
     .min(1)
     .max(1000)
     .default(100)
-    .describe("Maximum number of matches to return. default: 100"),
+    .describe("Maximum number of matches to return. default: 100, max: 1000"),
   wholeWord: z
     .boolean()
     .default(false)

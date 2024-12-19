@@ -36,13 +36,30 @@ class FileEditor {
 
     // Normalize edit content
     if (edit.content) {
-      edit.content = normalizeLineEndings(edit.content);
+      edit.content = this.normalizeEditContent(edit.content);
     }
     if (edit.strMatch) {
       edit.strMatch = normalizeLineEndings(edit.strMatch);
     }
+    if (edit.regexMatch) {
+      this.validateRegexPattern(edit.regexMatch);
+    }
 
     this.edits.push(edit);
+  }
+
+  private normalizeEditContent(content: string): string {
+    return normalizeLineEndings(content);
+  }
+
+  private validateRegexPattern(pattern: string): void {
+    try {
+      new RegExp(pattern);
+    } catch (error) {
+      throw new Error(
+        `Invalid regex pattern "${pattern}": ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
   }
 
   private validateRange(edit: EditOperation): void {
@@ -75,27 +92,19 @@ class FileEditor {
         if (edit.regexMatch) {
           for (const existingEdit of lineEdits) {
             if (existingEdit.regexMatch) {
-              const pattern1 = new RegExp(edit.regexMatch);
-              const pattern2 = new RegExp(existingEdit.regexMatch);
-              const lineContent = this.lines[line - 1].content;
+              const pattern1 = new RegExp(edit.regexMatch, "gm");
+              const pattern2 = new RegExp(existingEdit.regexMatch, "gm");
+              const lineContent = this.getFullLine(line);
 
-              const match1 = lineContent.match(pattern1);
-              const match2 = lineContent.match(pattern2);
-
-              if (match1 && match2) {
-                const start1 = match1.index!;
-                const end1 = start1 + match1[0].length;
-                const start2 = match2.index!;
-                const end2 = start2 + match2[0].length;
-
-                if (
-                  (start1 <= start2 && end1 > start2) ||
-                  (start2 <= start1 && end2 > start1)
-                ) {
-                  throw new Error(
-                    `Overlapping regex patterns on line ${line}: "${edit.regexMatch}" and "${existingEdit.regexMatch}"`
-                  );
-                }
+              const overlaps = this.checkRegexOverlap(
+                lineContent,
+                pattern1,
+                pattern2
+              );
+              if (overlaps) {
+                throw new Error(
+                  `Overlapping regex patterns on line ${line}: "${edit.regexMatch}" and "${existingEdit.regexMatch}"`
+                );
               }
             }
           }
@@ -118,6 +127,36 @@ class FileEditor {
     }
   }
 
+  private checkRegexOverlap(
+    text: string,
+    pattern1: RegExp,
+    pattern2: RegExp
+  ): boolean {
+    const matches1 = Array.from(text.matchAll(pattern1));
+    const matches2 = Array.from(text.matchAll(pattern2));
+
+    for (const match1 of matches1) {
+      const start1 = match1.index!;
+      const end1 = start1 + match1[0].length;
+
+      for (const match2 of matches2) {
+        const start2 = match2.index!;
+        const end2 = start2 + match2[0].length;
+
+        if ((start1 <= start2 && end1 > start2) || (start2 <= start1 && end2 > start1)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  private getFullLine(lineNumber: number): string {
+    const lineMetadata = this.lines[lineNumber - 1];
+    return lineMetadata.indentation + lineMetadata.content;
+  }
+
   private getIndentationLevel(content: string): number {
     const match = content.match(/^(\s*)/);
     return match ? match[1].length : 0;
@@ -125,13 +164,14 @@ class FileEditor {
 
   private preserveIndentation(
     newContent: string,
-    originalIndentation: string
+    originalIndentation: string,
+    baseIndentation: string = ""
   ): string {
     const lines = newContent.split("\n");
-    const baseIndentLevel = this.getIndentationLevel(lines[0]);
+    const baseIndentLevel = this.getIndentationLevel(baseIndentation || lines[0]);
 
     return lines
-      .map((line, index) => {
+      .map((line) => {
         const lineIndentLevel = this.getIndentationLevel(line);
         const relativeIndent = " ".repeat(
           Math.max(0, lineIndentLevel - baseIndentLevel)
@@ -160,8 +200,19 @@ class FileEditor {
       const normalizedMatch = normalizeLineEndings(edit.strMatch);
 
       if (normalizedLine.includes(normalizedMatch)) {
-        // Use exact match when found
-        return fullLine.replace(normalizedMatch, edit.content);
+        // For exact string matches, replace only the matched portion
+        // while preserving surrounding content
+        const startIndex = normalizedLine.indexOf(normalizedMatch);
+        const prefix = fullLine.substring(0, startIndex);
+        const suffix = fullLine.substring(startIndex + normalizedMatch.length);
+        
+        // If replacing just a portion (like "blue" with "green"), keep the line structure
+        if (!edit.content.includes('\n') && !normalizedMatch.includes('\n')) {
+          return prefix + edit.content + suffix;
+        }
+        
+        // For multi-line replacements, handle indentation
+        return this.preserveIndentation(edit.content, indentation);
       }
 
       // If exact match fails, try flexible whitespace matching
@@ -178,7 +229,15 @@ class FileEditor {
         .replace(/\s+/g, "\\s+"); // Replace spaces with flexible whitespace pattern
 
       const replacementRegex = new RegExp(escapedPattern);
-      return fullLine.replace(replacementRegex, edit.content);
+      
+      // For flexible matches, preserve the original indentation structure
+      return fullLine.replace(replacementRegex, (match) => {
+        // If the replacement doesn't contain newlines, preserve surrounding content
+        if (!edit.content.includes('\n')) {
+          return edit.content;
+        }
+        return this.preserveIndentation(edit.content, indentation);
+      });
     }
 
     if (edit.regexMatch) {
@@ -196,12 +255,28 @@ class FileEditor {
           // Handle named capture groups
           if (edit.content.includes("${")) {
             const groups = args[args.length - 1] || {};
-            return edit.content.replace(
+            let replaced = edit.content;
+            
+            // Replace all capture group references
+            replaced = replaced.replace(
               /\${(\w+)}/g,
               (_, name) => groups[name] || ""
             );
+
+            // For single-line replacements, maintain the line structure
+            if (!replaced.includes('\n')) {
+              return replaced;
+            }
+
+            return this.preserveIndentation(replaced, indentation);
           }
-          return edit.content;
+
+          // For single-line replacements without capture groups
+          if (!edit.content.includes('\n')) {
+            return edit.content;
+          }
+
+          return this.preserveIndentation(edit.content, indentation);
         });
       } catch (error) {
         if (error instanceof MatchNotFoundError) {
