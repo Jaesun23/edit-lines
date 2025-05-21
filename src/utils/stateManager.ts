@@ -36,11 +36,18 @@ export class StateManager {
 
   private generateStateId(path: string, edits: EditOperation[]): string {
     // Sort edits by line numbers to ensure consistent hashing
-    const sortedEdits = [...edits].sort((a, b) =>
-      a.startLine === b.startLine
-        ? a.endLine - b.endLine
-        : a.startLine - b.startLine
-    );
+    const sortedEdits = [...edits].sort((a, b) => {
+      // 안전한 비교: startLine과 endLine이 없을 경우 기본값(0) 사용
+      const aStartLine = a.startLine ?? a.lineNumber ?? 0;
+      const bStartLine = b.startLine ?? b.lineNumber ?? 0;
+
+      if (aStartLine === bStartLine) {
+        const aEndLine = a.endLine ?? a.lineNumber ?? aStartLine;
+        const bEndLine = b.endLine ?? b.lineNumber ?? bStartLine;
+        return aEndLine - bEndLine;
+      }
+      return aStartLine - bStartLine;
+    });
 
     // Create a deterministic string representation
     const content = JSON.stringify({

@@ -1,15 +1,14 @@
 import fs from "fs/promises";
 import path from "path";
-import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// 테스트 디렉토리 경로 설정
+const TEST_DIR = path.join(process.cwd(), "src", "__tests__");
 
 const FIXTURES = {
   "test-edits.txt": `line 1: function hello() {
 line 2:   console.log("Hello");
 line 3: }
-line 4: 
+line 4:
 line 5: function world() {
 line 6:   return "World";
 line 7: }
@@ -32,7 +31,7 @@ export const Card = ({
   size = "lg",
 }) => {
   const cardClass = \`card-\${theme} size-\${size}\`;
-  
+
   return (
     <div className={cardClass}>
       <h2>{title}</h2>
@@ -51,11 +50,26 @@ const CONFIG = {
   apiUrl: "https://api.example.com",
   timeout: 5000,
   retries: 3,
-};`
+};`,
+
+  "sample.txt": `Line 1
+Line 2
+Line 3
+Line 4
+Line 5`
 };
 
+/**
+ * 테스트 픽스처 파일의 전체 경로를 반환합니다.
+ * @param {string} filename - 픽스처 파일 이름
+ * @returns {string} 픽스처 파일의 전체 경로
+ */
+function getFixturePath(filename: string): string {
+  return path.join(TEST_DIR, "fixtures", filename);
+}
+
 async function resetFixtures() {
-  const fixturesDir = path.join(__dirname, "./fixtures");
+  const fixturesDir = path.join(TEST_DIR, "fixtures");
 
   // Ensure fixtures directory exists
   await fs.mkdir(fixturesDir, { recursive: true });
@@ -67,4 +81,7 @@ async function resetFixtures() {
   }
 }
 
-export { resetFixtures };
+// 테스트 시작 시 무조건 한 번 fixture 초기화
+resetFixtures().catch(console.error);
+
+export { getFixturePath, resetFixtures };

@@ -1,7 +1,7 @@
 line 1: function hello() {
 line 2:   console.log("Hello");
 line 3: }
-line 4: 
+line 4:
 line 5: function world() {
 line 6:   return "World";
 line 7: }
